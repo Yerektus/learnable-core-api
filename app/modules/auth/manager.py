@@ -3,7 +3,7 @@ import logging
 from beanie import PydanticObjectId
 from fastapi import HTTPException, Request, status
 from fastapi_users import BaseUserManager, InvalidPasswordException
-from fastapi_users.db import ObjectIDIDMixin
+from fastapi_users_db_beanie import ObjectIDIDMixin
 from fastapi_users.password import PasswordHelper
 from pwdlib import PasswordHash
 from pwdlib.hashers.bcrypt import BcryptHasher

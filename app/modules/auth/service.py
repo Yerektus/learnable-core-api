@@ -30,11 +30,26 @@ class AuthService:
         self.repo = repo
 
     async def authenticate(self, credentials: OAuth2PasswordRequestForm, user_manager: UserManager) -> Any:
-        """Authenticate login credentials."""
-        user = await user_manager.authenticate(credentials)
+        """Authenticate login credentials by email or username."""
+        login = credentials.username.strip().lower()
+        user = await self.repo.get_by_email(login)
+        if user is None:
+            user = await self.repo.get_by_username(login)
+
         if user is None or not user.is_active:
             user_manager.password_helper.hash(credentials.password)
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="LOGIN_BAD_CREDENTIALS")
+
+        verified, updated_password_hash = user_manager.password_helper.verify_and_update(
+            credentials.password,
+            user.hashed_password,
+        )
+        if not verified:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="LOGIN_BAD_CREDENTIALS")
+
+        if updated_password_hash is not None:
+            await user_manager.user_db.update(user, {"hashed_password": updated_password_hash})
+
         return user
 
     async def create_token_pair(self, user: Any, strategy: Strategy) -> TokenResponse:

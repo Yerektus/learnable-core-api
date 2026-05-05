@@ -1,17 +1,15 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Optional
 
-from beanie import Insert, Replace, Save, SaveChanges, before_event
-from fastapi_users_db_beanie import BeanieBaseUserDocument
+from beanie import Insert, PydanticObjectId, Replace, Save, SaveChanges, before_event
+from fastapi_users.db import BeanieBaseUser
 from pydantic import Field, field_validator
 from pymongo import ASCENDING, IndexModel
 
-
-def utc_now() -> datetime:
-    return datetime.now(UTC)
+from app.utils import utc_now
 
 
-class User(BeanieBaseUserDocument):
+class User(BeanieBaseUser[PydanticObjectId]):
 
     email: str
     username: str = Field(
@@ -28,6 +26,7 @@ class User(BeanieBaseUserDocument):
     @field_validator("username")
     @classmethod
     def normalize_username(cls, value: str) -> str:
+        """Normalize username before saving it to MongoDB."""
         return value.lower()
 
     @before_event(Insert)
@@ -40,9 +39,9 @@ class User(BeanieBaseUserDocument):
     def set_updated_timestamp(self) -> None:
         self.updated_at = utc_now()
 
-    class Settings(BeanieBaseUserDocument.Settings):
+    class Settings(BeanieBaseUser.Settings):
         name = "users"
         indexes = [
-            *BeanieBaseUserDocument.Settings.indexes,
+            IndexModel([("email", ASCENDING)], unique=True, name="uniq_users_email"),
             IndexModel([("username", ASCENDING)], unique=True, name="uniq_users_username"),
         ]

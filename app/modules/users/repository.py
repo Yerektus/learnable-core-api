@@ -1,5 +1,5 @@
 from beanie import PydanticObjectId
-from fastapi_users.db import BeanieUserDatabase
+from fastapi_users_db_beanie import BeanieUserDatabase
 
 from app.modules.users.models import User
 
