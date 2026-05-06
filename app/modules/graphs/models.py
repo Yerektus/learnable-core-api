@@ -47,3 +47,45 @@ class Graph(Document):
         indexes = [
             IndexModel([("owner_id", ASCENDING), ("created_at", DESCENDING)], name="idx_graphs_owner_created"),
         ]
+
+#ноды которые я добавил     
+class GraphNode(Document):
+
+    owner_id: PydanticObjectId
+
+    graph_id: PydanticObjectId
+
+    title: str = Field(min_length=1, max_length=120)
+
+    description: Optional[str] = Field(
+        default=None,
+        max_length=1000,
+    )
+
+    position_x: float = 0
+
+    position_y: float = 0
+
+    created_at: datetime = Field(default_factory=utc_now)
+
+    updated_at: datetime = Field(default_factory=utc_now)
+
+    @before_event(Insert)
+    def set_created_timestamps(self) -> None:
+        now = utc_now()
+        self.created_at = now
+        self.updated_at = now
+
+    @before_event(Replace, Save, SaveChanges)
+    def set_updated_timestamp(self) -> None:
+        self.updated_at = utc_now()
+
+    class Settings:
+        name = "graph_nodes"
+
+        indexes = [
+            IndexModel(
+                [("graph_id", ASCENDING)],
+                name="idx_nodes_graph",
+            ),
+        ]
