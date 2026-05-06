@@ -12,6 +12,8 @@ from app.modules.auth.router import router as auth_router
 from app.modules.graphs.router import router as graphs_router
 from app.modules.users.router import admin_router, router as users_router
 
+from app.modules.kanban.router import router as kanban_router
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -56,6 +58,11 @@ app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
 app.include_router(graphs_router, prefix="/api/v1/graphs", tags=["graphs"])
 app.include_router(admin_router, prefix="/api/v1")
+
+app.include_router(
+    kanban_router,
+    prefix="/kanban",
+)
 
 
 @app.get("/health", tags=["health"], summary="Health check")
