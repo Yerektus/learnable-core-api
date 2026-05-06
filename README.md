@@ -21,6 +21,7 @@ Core API для Learnable: сервис авторизации и профиле
 - Обновление access token через refresh token.
 - Получение и обновление текущего профиля.
 - Публичный профиль пользователя по username.
+- Создание, просмотр, обновление и удаление графов текущего пользователя.
 - Админский список пользователей.
 - Email verification и password reset роуты от `fastapi-users`.
 - Health check.
@@ -126,6 +127,12 @@ learnable-core-api/
 │       │   ├── manager.py      # fastapi-users UserManager
 │       │   ├── backend.py      # JWT backend
 │       │   └── dependencies.py # Auth dependencies
+│       ├── graphs/
+│       │   ├── router.py       # Graph CRUD endpoints
+│       │   ├── service.py      # Graph business logic and ownership checks
+│       │   ├── repository.py   # Beanie access layer
+│       │   ├── schemas.py      # Request/response schemas
+│       │   └── models.py       # Graph document
 │       └── users/
 │           ├── router.py       # User and admin endpoints
 │           ├── service.py      # User business logic
@@ -167,6 +174,21 @@ learnable-core-api/
 | `GET` | `/api/v1/users/me` | bearer | Текущий профиль |
 | `PATCH` | `/api/v1/users/me` | bearer | Обновление текущего профиля |
 | `GET` | `/api/v1/users/{username}` | нет | Публичный профиль пользователя |
+
+### Graphs
+
+| Method | Path | Auth | Описание |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/graphs` | bearer | Создать граф текущего пользователя |
+| `GET` | `/api/v1/graphs` | bearer | Список графов текущего пользователя |
+| `GET` | `/api/v1/graphs/{graph_id}` | bearer | Получить граф текущего пользователя |
+| `PATCH` | `/api/v1/graphs/{graph_id}` | bearer | Обновить граф текущего пользователя |
+| `DELETE` | `/api/v1/graphs/{graph_id}` | bearer | Удалить граф текущего пользователя |
+
+Query параметры для списка графов:
+
+- `skip`: смещение, минимум `0`, по умолчанию `0`
+- `limit`: размер страницы, от `1` до `500`, по умолчанию `100`
 
 ### Admin
 
@@ -277,6 +299,38 @@ curl -X PATCH http://localhost:8000/api/v1/users/me \
 
 ```bash
 curl http://localhost:8000/api/v1/users/john_updated
+```
+
+### Создание графа
+
+```bash
+curl -X POST http://localhost:8000/api/v1/graphs \
+  -H "Authorization: Bearer <access-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Math",
+    "description": "Course graph"
+  }'
+```
+
+Ответ:
+
+```json
+{
+  "id": "663000000000000000000001",
+  "owner_id": "663000000000000000000000",
+  "name": "Math",
+  "description": "Course graph",
+  "created_at": "2026-05-05T12:00:00.000Z",
+  "updated_at": "2026-05-05T12:00:00.000Z"
+}
+```
+
+### Список графов
+
+```bash
+curl "http://localhost:8000/api/v1/graphs?skip=0&limit=100" \
+  -H "Authorization: Bearer <access-token>"
 ```
 
 ### Список пользователей для админа

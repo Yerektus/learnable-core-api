@@ -9,6 +9,7 @@ from app.config import get_settings
 from app.database import close_database, init_database
 from app.exceptions import setup_exception_handlers
 from app.modules.auth.router import router as auth_router
+from app.modules.graphs.router import router as graphs_router
 from app.modules.users.router import admin_router, router as users_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -35,6 +36,7 @@ app = FastAPI(
     openapi_tags=[
         {"name": "auth", "description": "Registration, JWT login/logout, refresh tokens, email verification, password reset."},
         {"name": "users", "description": "Authenticated and public user profile operations."},
+        {"name": "graphs", "description": "Authenticated graph creation and graph management operations."},
         {"name": "admin", "description": "Administrative user operations."},
         {"name": "health", "description": "Service health checks."},
     ],
@@ -52,6 +54,7 @@ setup_exception_handlers(app)
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
+app.include_router(graphs_router, prefix="/api/v1/graphs", tags=["graphs"])
 app.include_router(admin_router, prefix="/api/v1")
 
 
