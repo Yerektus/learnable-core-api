@@ -18,7 +18,8 @@ from app.modules.users.models import utc_now
 
 
 class TaskStatus(str, Enum):
-    TODO = "todo"
+    BACKLOG = "backlog"
+    NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
     DONE = "done"
 
@@ -40,7 +41,7 @@ class Task(Document):
         max_length=1000,
     )
 
-    status: TaskStatus = TaskStatus.TODO
+    status: TaskStatus = TaskStatus.NOT_STARTED
 
     priority: TaskPriority = TaskPriority.MEDIUM
 
@@ -49,6 +50,8 @@ class Task(Document):
     topic_id: Optional[str] = None
 
     source: str = "manual"
+
+    tags: list[str] = Field(default_factory=list)
 
     created_at: datetime = Field(default_factory=utc_now)
 

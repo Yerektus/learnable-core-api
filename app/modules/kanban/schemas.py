@@ -15,6 +15,7 @@ class TaskCreate(BaseModel):
     graph_id: Optional[PydanticObjectId] = None
     topic_id: Optional[PydanticObjectId] = None
     source: str = Field(default="manual", max_length=50)
+    tags: list[str] = Field(default_factory=list)
 
     @field_validator("title")
     @classmethod
@@ -50,6 +51,7 @@ class TaskUpdate(BaseModel):
     graph_id: Optional[PydanticObjectId] = None
     topic_id: Optional[PydanticObjectId] = None
     source: Optional[str] = Field(default=None, max_length=50)
+    tags: Optional[list[str]] = None
 
     @field_validator("title")
     @classmethod
@@ -91,5 +93,6 @@ class TaskRead(BaseModel):
     source: str
     created_at: datetime
     updated_at: datetime
-
+    tags: list[str]
+    
     model_config = ConfigDict(from_attributes=True)
