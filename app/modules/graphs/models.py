@@ -13,6 +13,7 @@ class Graph(Document):
     owner_id: PydanticObjectId
     name: str = Field(min_length=1, max_length=80)
     description: Optional[str] = Field(default=None, max_length=500)
+    custom_prompt: Optional[str] = Field(default=None, max_length=2000)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 

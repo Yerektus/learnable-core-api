@@ -21,5 +21,21 @@ services:
       retries: 5
       start_period: 10s
 
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: learnable-falkordb
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+      - "3000:3000"
+    volumes:
+      - falkordb_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   mongodb_data:
+  falkordb_data:

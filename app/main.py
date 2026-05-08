@@ -11,8 +11,10 @@ from app.exceptions import setup_exception_handlers
 from app.modules.auth.router import router as auth_router
 from app.modules.graphs.router import router as graphs_router
 from app.modules.users.router import admin_router, router as users_router
-
 from app.modules.kanban.router import router as kanban_router
+from app.modules.ai.router import router as ai_router
+from app.modules.ai.graph.schema import init_falkordb_schema
+from app.modules.ai.graph.embeddings import warmup as warmup_embeddings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -23,6 +25,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Initialize MongoDB/Beanie on startup and close Motor on shutdown."""
     logger.info("Starting Learnable Core API")
     await init_database(app)
+    # Initialize FalkorDB schema
+    init_falkordb_schema()
+    # Warmup embedding model (pre-load BGE-M3 to avoid first-request latency)
+    import asyncio
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, warmup_embeddings)
+    logger.info("FalkorDB schema initialized, embeddings warmed up")
     try:
         yield
     finally:
@@ -41,6 +50,7 @@ app = FastAPI(
         {"name": "graphs", "description": "Authenticated graph creation and graph management operations."},
         {"name": "admin", "description": "Administrative user operations."},
         {"name": "health", "description": "Service health checks."},
+        {"name": "ai", "description": "AI-powered study features: graph generation, chat, materials, planning."},
     ],
 )
 
@@ -58,11 +68,8 @@ app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
 app.include_router(graphs_router, prefix="/api/v1/graphs", tags=["graphs"])
 app.include_router(admin_router, prefix="/api/v1")
-
-app.include_router(
-    kanban_router,
-    prefix="/kanban",
-)
+app.include_router(kanban_router, prefix="/api/v1/kanban")
+app.include_router(ai_router, prefix="/api/v1/ai", tags=["ai"])
 
 
 @app.get("/health", tags=["health"], summary="Health check")
