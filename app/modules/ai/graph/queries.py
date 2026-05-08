@@ -74,16 +74,21 @@ def get_node_context(user_id: str, node_id: str) -> dict:
 def search_similar_errors(question_embedding: list[float], user_id: str, node_id: str, threshold: float = 0.82) -> list[str]:
     """Find errors similar to current question using vector search.
     Only returns errors with at least one SIMILAR_TO connection (quality filter)."""
-    g = get_graph()
-    result = g.query(
-        "MATCH (u:User {id: $uid})-[:MADE_ERROR]->(e:Error)-[:IN_NODE]->(n:Node {id: $nid}) "
-        "WHERE EXISTS((e)-[:SIMILAR_TO]->()) "
-        "WITH e, vec.distance.cosine(e.embedding, vecf32($emb)) AS score "
-        "WHERE score >= $threshold "
-        "RETURN e.description ORDER BY score DESC LIMIT 5",
-        {"uid": user_id, "nid": node_id, "emb": question_embedding, "threshold": threshold}
-    )
-    return [row[0] for row in result.result_set]
+    try:
+        g = get_graph()
+        max_dist = 1.0 - threshold
+        result = g.query(
+            "CALL db.idx.vector.queryNodes('Error', 'embedding', 10, vecf32($emb)) YIELD node AS e, score "
+            "WHERE score <= $max_dist "
+            "WITH e, score "
+            "MATCH (u:User {id: $uid})-[:MADE_ERROR]->(e)-[:IN_NODE]->(n:Node {id: $nid}) "
+            "WHERE EXISTS((e)-[:SIMILAR_TO]->()) "
+            "RETURN e.description ORDER BY score ASC LIMIT 5",
+            {"uid": user_id, "nid": node_id, "emb": question_embedding, "max_dist": max_dist}
+        )
+        return [row[0] for row in result.result_set]
+    except Exception:
+        return []
 
 def record_error(error_id: str, user_id: str, node_id: str, description: str,
                  embedding: list[float], source: str = "chat"):
@@ -109,12 +114,12 @@ def find_and_link_similar_errors(error_id: str, threshold: float = 0.85):
     if not result.result_set:
         return
     emb = result.result_set[0][0]
+    max_dist = 1.0 - threshold
     similar = g.query(
-        "MATCH (other:Error) WHERE other.id <> $eid "
-        "WITH other, vec.distance.cosine(other.embedding, vecf32($emb)) AS score "
-        "WHERE score >= $threshold "
+        "CALL db.idx.vector.queryNodes('Error', 'embedding', 20, vecf32($emb)) YIELD node AS other, score "
+        "WHERE score <= $max_dist AND other.id <> $eid "
         "RETURN other.id",
-        {"eid": error_id, "emb": emb, "threshold": threshold}
+        {"eid": error_id, "emb": emb, "max_dist": max_dist}
     )
     for row in similar.result_set:
         g.query(
