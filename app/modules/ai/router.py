@@ -1,6 +1,9 @@
 import asyncio
+import logging
 import uuid
 from typing import Annotated
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, WebSocket
 from fastapi.responses import StreamingResponse
@@ -30,6 +33,49 @@ async def _run_sync(func, *args):
     return await asyncio.get_running_loop().run_in_executor(None, func, *args)
 
 
+async def _persist_generated_graph(
+    generated,
+    graph_id: str,
+    user,
+) -> tuple[int, int]:
+    """Insert GeneratedGraph into MongoDB + FalkorDB. Returns (nodes_created, deadlines_created)."""
+    from app.modules.graphs.models import GraphNode
+    from beanie import PydanticObjectId
+
+    node_ids = []
+    for i, node_data in enumerate(generated.nodes):
+        gn = GraphNode(
+            owner_id=user.id,
+            graph_id=PydanticObjectId(graph_id),
+            title=node_data.title,
+            description=node_data.description,
+            position_x=float(i * 200),
+            position_y=0.0,
+        )
+        await gn.insert()
+        node_id = str(gn.id)
+        node_ids.append(node_id)
+        node_emb = await _run_sync(embed, f"{node_data.title} {node_data.description}")
+        await _run_sync(gq.create_node, node_id, graph_id, node_data.title, node_data.description, node_emb)
+
+    order_to_id = {node_data.order: node_id for node_data, node_id in zip(generated.nodes, node_ids)}
+    index_to_id = {i: node_id for i, node_id in enumerate(node_ids)}
+
+    for from_order, to_order in generated.edges:
+        if from_order in order_to_id and to_order in order_to_id:
+            await _run_sync(gq.create_precedes, order_to_id[from_order], order_to_id[to_order])
+
+    for dl in generated.deadlines:
+        dl_id = str(uuid.uuid4())
+        await _run_sync(gq.create_deadline, dl_id, graph_id, dl.title, dl.date.isoformat())
+        for ni in dl.node_indices:
+            node_id_for_dl = order_to_id.get(ni) or index_to_id.get(ni)
+            if node_id_for_dl:
+                await _run_sync(gq.link_deadline_to_node, dl_id, node_id_for_dl)
+
+    return len(node_ids), len(generated.deadlines)
+
+
 # ── Graph generation ──────────────────────────────────────────
 @router.post("/graphs/{graph_id}/generate", response_model=GenerateGraphResponse)
 async def generate_graph(
@@ -43,54 +89,19 @@ async def generate_graph(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Get custom_prompt from Graph model
     from app.modules.graphs.models import Graph
     graph = await Graph.get(graph_id)
     if not graph or str(graph.owner_id) != str(user.id):
         raise HTTPException(status_code=404, detail="Graph not found")
 
     generated = await _run_sync(generate_graph_from_text, text, graph.custom_prompt or "")
-
-    # Ensure graph node in FalkorDB
     await _run_sync(gq.create_graph_node, graph_id, str(user.id), graph.name)
-
-    # Create nodes in MongoDB first (to get canonical id), then mirror to FalkorDB
-    from app.modules.graphs.models import GraphNode
-    from beanie import PydanticObjectId
-
-    node_ids = []
-    for i, node_data in enumerate(generated.nodes):
-        gn = GraphNode(
-            owner_id=user.id,
-            graph_id=PydanticObjectId(graph_id),
-            title=node_data.title,
-            description=node_data.description,
-            position_x=float(i * 200),
-            position_y=0.0,
-        )
-        await gn.insert()
-        node_id = str(gn.id)
-        node_ids.append(node_id)
-        node_emb = await _run_sync(embed, f"{node_data.title} {node_data.description}")
-        await _run_sync(gq.create_node, node_id, graph_id, node_data.title, node_data.description, node_emb)
-
-    # Create PRECEDES edges
-    for from_idx, to_idx in generated.edges:
-        if from_idx < len(node_ids) and to_idx < len(node_ids):
-            await _run_sync(gq.create_precedes, node_ids[from_idx], node_ids[to_idx])
-
-    # Create deadlines
-    for dl in generated.deadlines:
-        dl_id = str(uuid.uuid4())
-        await _run_sync(gq.create_deadline, dl_id, graph_id, dl.title, dl.date)
-        for ni in dl.node_indices:
-            if ni < len(node_ids):
-                await _run_sync(gq.link_deadline_to_node, dl_id, node_ids[ni])
+    nodes_created, deadlines_created = await _persist_generated_graph(generated, graph_id, user)
 
     return GenerateGraphResponse(
         graph_id=graph_id,
-        nodes_created=len(generated.nodes),
-        deadlines_created=len(generated.deadlines),
+        nodes_created=nodes_created,
+        deadlines_created=deadlines_created,
     )
 
 
@@ -103,33 +114,21 @@ async def generate_graph_from_audio(
 ):
     content = await file.read()
     text = await _run_sync(transcribe_audio, content, file.filename or "audio.mp3")
+
     from app.modules.graphs.models import Graph
     graph = await Graph.get(graph_id)
     if not graph or str(graph.owner_id) != str(user.id):
         raise HTTPException(status_code=404, detail="Graph not found")
-    await _run_sync(gq.create_graph_node, graph_id, str(user.id), graph.name)
+
     generated = await _run_sync(generate_graph_from_text, text, graph.custom_prompt or "")
-    from app.modules.graphs.models import GraphNode
-    from beanie import PydanticObjectId
-    node_ids = []
-    for i, node_data in enumerate(generated.nodes):
-        gn = GraphNode(
-            owner_id=user.id,
-            graph_id=PydanticObjectId(graph_id),
-            title=node_data.title,
-            description=node_data.description,
-            position_x=float(i * 200),
-            position_y=0.0,
-        )
-        await gn.insert()
-        node_id = str(gn.id)
-        node_ids.append(node_id)
-        node_emb = await _run_sync(embed, f"{node_data.title} {node_data.description}")
-        await _run_sync(gq.create_node, node_id, graph_id, node_data.title, node_data.description, node_emb)
-    for from_idx, to_idx in generated.edges:
-        if from_idx < len(node_ids) and to_idx < len(node_ids):
-            await _run_sync(gq.create_precedes, node_ids[from_idx], node_ids[to_idx])
-    return GenerateGraphResponse(graph_id=graph_id, nodes_created=len(node_ids), deadlines_created=0)
+    await _run_sync(gq.create_graph_node, graph_id, str(user.id), graph.name)
+    nodes_created, deadlines_created = await _persist_generated_graph(generated, graph_id, user)
+
+    return GenerateGraphResponse(
+        graph_id=graph_id,
+        nodes_created=nodes_created,
+        deadlines_created=deadlines_created,
+    )
 
 
 # ── Chat ──────────────────────────────────────────────────────
@@ -161,27 +160,23 @@ async def record_error_endpoint(
     user: User = Depends(current_active_user),
 ):
     error_id = str(uuid.uuid4())
+    await _run_sync(gq.ensure_user_node, str(user.id))
     emb = await _run_sync(embed, description)
     await _run_sync(gq.record_error, error_id, str(user.id), node_id, description, emb, source)
-    asyncio.create_task(_async_link_similar(error_id))
+    task = asyncio.create_task(_async_link_similar(error_id))
+    task.add_done_callback(_log_task_exception)
     return {"error_id": error_id}
 
 async def _async_link_similar(error_id: str):
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, gq.find_and_link_similar_errors, error_id)
+
+def _log_task_exception(task: asyncio.Task) -> None:
+    if not task.cancelled() and task.exception() is not None:
+        logger.error("Background task %s failed", task.get_name(), exc_info=task.exception())
 
 
 # ── Materials ─────────────────────────────────────────────────
-@router.post("/nodes/{node_id}/materials/generate")
-async def generate_materials(
-    node_id: str,
-    request: GenerateMaterialsRequest,
-    user: User = Depends(current_active_user),
-):
-    # For v0: requires text input; in v1 will use stored uploaded materials
-    raise HTTPException(status_code=501, detail="Use /nodes/{node_id}/materials/generate-from-file")
-
-
 @router.post("/nodes/{node_id}/materials/generate-from-file")
 async def generate_materials_from_file(
     node_id: str,

@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Literal, Optional
 from pydantic import BaseModel
 
@@ -10,7 +11,7 @@ class GeneratedNode(BaseModel):
 
 class GeneratedDeadline(BaseModel):
     title: str
-    date: str  # "YYYY-MM-DD"
+    date: date  # validated YYYY-MM-DD; Pydantic rejects bad format and invalid calendar dates
     node_indices: list[int]
 
 class GeneratedGraph(BaseModel):
@@ -45,8 +46,11 @@ class Flashcard(BaseModel):
     front: str
     back: str
 
+class CardsOutput(BaseModel):
+    cards: list[Flashcard]
+
 class GeneratedMaterials(BaseModel):
-    node_id: str
+    node_id: str = ""
     cards: list[Flashcard] = []
     notes: str = ""
 

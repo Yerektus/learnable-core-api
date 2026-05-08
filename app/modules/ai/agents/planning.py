@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 from typing import AsyncIterator
@@ -56,6 +57,10 @@ async def stream_planning(
     mongodb_client: AsyncIOMotorClient,
 ) -> AsyncIterator[str]:
 
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, gq.ensure_user_node, user_id)
+    await loop.run_in_executor(None, gq.create_graph_node, graph_id, user_id, "")
+
     # Snapshot before agent starts
     snapshot = gq.snapshot_graph_state(graph_id)
 
@@ -77,10 +82,10 @@ async def stream_planning(
                     tool_name = tc["name"]
                     tool_args = tc["args"]
                     yield f"\n[Running: {tool_name}...]\n"
-                    # Find and execute tool
+                    # Find and execute tool (run_in_executor — tools call sync FalkorDB ops)
                     for t in tools:
                         if t.name == tool_name:
-                            result = t.invoke(tool_args)
+                            result = await loop.run_in_executor(None, lambda: t.invoke(tool_args))
                             yield f"[Done: {result}]\n"
                             break
     except Exception as e:

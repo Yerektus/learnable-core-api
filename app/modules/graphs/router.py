@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.modules.auth.dependencies import current_active_user
@@ -79,7 +81,14 @@ async def create_graph_node(
     user: User = Depends(current_active_user),
     service: GraphService = Depends(get_graph_service),
 ) -> GraphNodeRead:
-    return await service.create_node(user, graph_id, payload)
+    from app.modules.ai.graph import queries as gq
+    from app.modules.ai.graph.embeddings import embed
+    node = await service.create_node(user, graph_id, payload)
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, gq.ensure_graph_node, graph_id, str(user.id))
+    node_emb = await loop.run_in_executor(None, embed, f"{payload.title} {payload.description or ''}")
+    await loop.run_in_executor(None, gq.create_node, str(node.id), graph_id, payload.title, payload.description or "", node_emb)
+    return node
 
 
 @router.get(
@@ -123,7 +132,45 @@ async def update_graph_node(
     user: User = Depends(current_active_user),
     service: GraphService = Depends(get_graph_service),
 ) -> GraphNodeRead:
-    return await service.update_node(user, graph_id, node_id, payload)
+    from app.modules.ai.graph import queries as gq
+    from app.modules.ai.graph.embeddings import embed
+    node = await service.update_node(user, graph_id, node_id, payload)
+    if payload.title is not None or payload.description is not None:
+        loop = asyncio.get_running_loop()
+        node_emb = await loop.run_in_executor(None, embed, f"{node.title} {node.description or ''}")
+        await loop.run_in_executor(None, gq.update_node_embedding, node_id, node.title, node.description or "", node_emb)
+    return node
+
+
+@router.get(
+    "/{graph_id}/deadlines",
+    summary="List deadlines for a graph",
+)
+async def list_graph_deadlines(
+    graph_id: str,
+    user: User = Depends(current_active_user),
+    service: GraphService = Depends(get_graph_service),
+) -> list[dict]:
+    await service.get_graph(user, graph_id)  # ownership check
+    from app.modules.ai.graph import queries as gq
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, gq.get_graph_deadlines, graph_id, str(user.id))
+
+
+@router.get(
+    "/{graph_id}/nodes/{node_id}/deadlines",
+    summary="List deadlines covering a specific node",
+)
+async def list_node_deadlines(
+    graph_id: str,
+    node_id: str,
+    user: User = Depends(current_active_user),
+    service: GraphService = Depends(get_graph_service),
+) -> list[dict]:
+    await service.get_node(user, graph_id, node_id)  # ownership check
+    from app.modules.ai.graph import queries as gq
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, gq.get_node_deadlines, node_id, str(user.id))
 
 
 @router.delete(
