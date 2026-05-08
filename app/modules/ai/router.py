@@ -26,6 +26,10 @@ from app.config import get_settings
 router = APIRouter()
 
 
+async def _run_sync(func, *args):
+    return await asyncio.get_running_loop().run_in_executor(None, func, *args)
+
+
 # ── Graph generation ──────────────────────────────────────────
 @router.post("/graphs/{graph_id}/generate", response_model=GenerateGraphResponse)
 async def generate_graph(
@@ -35,7 +39,7 @@ async def generate_graph(
 ):
     content = await file.read()
     try:
-        text = parse_file(file.filename or "file.txt", content)
+        text = await _run_sync(parse_file, file.filename or "file.txt", content)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -45,23 +49,17 @@ async def generate_graph(
     if not graph or str(graph.owner_id) != str(user.id):
         raise HTTPException(status_code=404, detail="Graph not found")
 
-    generated = generate_graph_from_text(text, graph.custom_prompt or "")
+    generated = await _run_sync(generate_graph_from_text, text, graph.custom_prompt or "")
 
     # Ensure graph node in FalkorDB
-    gq.create_graph_node(graph_id, str(user.id), graph.name)
+    await _run_sync(gq.create_graph_node, graph_id, str(user.id), graph.name)
 
-    # Create nodes in FalkorDB + MongoDB GraphNode
+    # Create nodes in MongoDB first (to get canonical id), then mirror to FalkorDB
     from app.modules.graphs.models import GraphNode
     from beanie import PydanticObjectId
 
     node_ids = []
     for i, node_data in enumerate(generated.nodes):
-        node_id = str(uuid.uuid4())
-        node_ids.append(node_id)
-        node_emb = embed(f"{node_data.title} {node_data.description}")
-        gq.create_node(node_id, graph_id, node_data.title, node_data.description, node_emb)
-
-        # Sync to MongoDB
         gn = GraphNode(
             owner_id=user.id,
             graph_id=PydanticObjectId(graph_id),
@@ -71,19 +69,23 @@ async def generate_graph(
             position_y=0.0,
         )
         await gn.insert()
+        node_id = str(gn.id)
+        node_ids.append(node_id)
+        node_emb = await _run_sync(embed, f"{node_data.title} {node_data.description}")
+        await _run_sync(gq.create_node, node_id, graph_id, node_data.title, node_data.description, node_emb)
 
     # Create PRECEDES edges
     for from_idx, to_idx in generated.edges:
         if from_idx < len(node_ids) and to_idx < len(node_ids):
-            gq.create_precedes(node_ids[from_idx], node_ids[to_idx])
+            await _run_sync(gq.create_precedes, node_ids[from_idx], node_ids[to_idx])
 
     # Create deadlines
     for dl in generated.deadlines:
         dl_id = str(uuid.uuid4())
-        gq.create_deadline(dl_id, graph_id, dl.title, dl.date)
+        await _run_sync(gq.create_deadline, dl_id, graph_id, dl.title, dl.date)
         for ni in dl.node_indices:
             if ni < len(node_ids):
-                gq.link_deadline_to_node(dl_id, node_ids[ni])
+                await _run_sync(gq.link_deadline_to_node, dl_id, node_ids[ni])
 
     return GenerateGraphResponse(
         graph_id=graph_id,
@@ -100,22 +102,33 @@ async def generate_graph_from_audio(
     user: User = Depends(current_active_user),
 ):
     content = await file.read()
-    text = transcribe_audio(content, file.filename or "audio.mp3")
+    text = await _run_sync(transcribe_audio, content, file.filename or "audio.mp3")
     from app.modules.graphs.models import Graph
     graph = await Graph.get(graph_id)
     if not graph or str(graph.owner_id) != str(user.id):
         raise HTTPException(status_code=404, detail="Graph not found")
-    gq.create_graph_node(graph_id, str(user.id), graph.name)
-    generated = generate_graph_from_text(text, graph.custom_prompt or "")
+    await _run_sync(gq.create_graph_node, graph_id, str(user.id), graph.name)
+    generated = await _run_sync(generate_graph_from_text, text, graph.custom_prompt or "")
+    from app.modules.graphs.models import GraphNode
+    from beanie import PydanticObjectId
     node_ids = []
     for i, node_data in enumerate(generated.nodes):
-        node_id = str(uuid.uuid4())
+        gn = GraphNode(
+            owner_id=user.id,
+            graph_id=PydanticObjectId(graph_id),
+            title=node_data.title,
+            description=node_data.description,
+            position_x=float(i * 200),
+            position_y=0.0,
+        )
+        await gn.insert()
+        node_id = str(gn.id)
         node_ids.append(node_id)
-        gq.create_node(node_id, graph_id, node_data.title, node_data.description,
-                       embed(f"{node_data.title} {node_data.description}"))
+        node_emb = await _run_sync(embed, f"{node_data.title} {node_data.description}")
+        await _run_sync(gq.create_node, node_id, graph_id, node_data.title, node_data.description, node_emb)
     for from_idx, to_idx in generated.edges:
         if from_idx < len(node_ids) and to_idx < len(node_ids):
-            gq.create_precedes(node_ids[from_idx], node_ids[to_idx])
+            await _run_sync(gq.create_precedes, node_ids[from_idx], node_ids[to_idx])
     return GenerateGraphResponse(graph_id=graph_id, nodes_created=len(node_ids), deadlines_created=0)
 
 
@@ -148,8 +161,8 @@ async def record_error_endpoint(
     user: User = Depends(current_active_user),
 ):
     error_id = str(uuid.uuid4())
-    emb = embed(description)
-    gq.record_error(error_id, str(user.id), node_id, description, emb, source)
+    emb = await _run_sync(embed, description)
+    await _run_sync(gq.record_error, error_id, str(user.id), node_id, description, emb, source)
     asyncio.create_task(_async_link_similar(error_id))
     return {"error_id": error_id}
 
@@ -177,12 +190,15 @@ async def generate_materials_from_file(
     user: User = Depends(current_active_user),
 ):
     content = await file.read()
-    text = parse_file(file.filename or "file.txt", content)
+    try:
+        text = await _run_sync(parse_file, file.filename or "file.txt", content)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     result = {"node_id": node_id, "cards": [], "notes": ""}
     if material_type in ("cards", "both"):
-        result["cards"] = generate_cards(text)
+        result["cards"] = await _run_sync(generate_cards, text)
     if material_type in ("notes", "both"):
-        result["notes"] = generate_notes(text)
+        result["notes"] = await _run_sync(generate_notes, text)
     return result
 
 
@@ -193,8 +209,6 @@ async def planning_panel(
     request: PlanningRequest,
     user: User = Depends(current_active_user),
 ):
-    from app.database import _get_mongo_client  # helper to get client
-
     async def event_generator():
         async for chunk in stream_planning(
             graph_id=graph_id,
@@ -213,7 +227,7 @@ async def deadline_prep(
     deadline_id: str,
     user: User = Depends(current_active_user),
 ):
-    ctx = gq.get_deadline_prep_context(str(user.id), deadline_id)
+    ctx = await _run_sync(gq.get_deadline_prep_context, str(user.id), deadline_id)
 
     async def event_generator():
         from app.modules.ai.llm import get_llm

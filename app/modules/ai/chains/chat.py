@@ -38,10 +38,11 @@ async def stream_chat(
     chat_history: list[dict],
 ) -> AsyncIterator[str]:
 
-    # Get context from FalkorDB
-    node_ctx = get_node_context(user_id, node_id)
-    question_emb = embed(message)
-    similar_errors = search_similar_errors(question_emb, user_id, node_id)
+    # Get context from FalkorDB (run_in_executor — all three are sync/blocking)
+    loop = asyncio.get_running_loop()
+    node_ctx = await loop.run_in_executor(None, get_node_context, user_id, node_id)
+    question_emb = await loop.run_in_executor(None, embed, message)
+    similar_errors = await loop.run_in_executor(None, search_similar_errors, question_emb, user_id, node_id)
 
     # Build context strings
     deadline_context = ""

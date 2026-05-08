@@ -7,6 +7,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from app.modules.ai.llm import get_llm
 from app.modules.ai.graph import queries as gq
+from app.modules.ai.graph.client import get_graph
 from motor.motor_asyncio import AsyncIOMotorClient
 
 PLANNING_SYSTEM = """You are an AI assistant that helps build and edit learning graphs.
@@ -29,7 +30,7 @@ def make_graph_tools(graph_id: str, user_id: str):
     @tool
     def remove_node(node_id: str) -> str:
         """Remove a node from the graph by ID."""
-        g = gq.get_graph()
+        g = get_graph()
         g.query("MATCH (n:Node {id: $id}) DETACH DELETE n", {"id": node_id})
         return f"Removed node {node_id}"
 
