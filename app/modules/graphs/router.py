@@ -8,6 +8,8 @@ from app.modules.graphs.dependencies import get_graph_service
 #заменил from app.modules.graphs.schemas import GraphCreate, GraphRead, GraphUpdate
 from app.modules.graphs.schemas import (
     GraphCreate,
+    GraphEdgeCreate,
+    GraphEdgeRead,
     GraphNodeCreate,
     GraphNodeRead,
     GraphNodeUpdate,
@@ -185,4 +187,49 @@ async def delete_graph_node(
     service: GraphService = Depends(get_graph_service),
 ) -> Response:
     await service.delete_node(user, graph_id, node_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{graph_id}/edges",
+    response_model=GraphEdgeRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create graph edge",
+)
+async def create_graph_edge(
+    graph_id: str,
+    payload: GraphEdgeCreate,
+    user: User = Depends(current_active_user),
+    service: GraphService = Depends(get_graph_service),
+) -> GraphEdgeRead:
+    return await service.create_edge(user, graph_id, payload)
+
+
+@router.get(
+    "/{graph_id}/edges",
+    response_model=list[GraphEdgeRead],
+    summary="List graph edges",
+)
+async def list_graph_edges(
+    graph_id: str,
+    user: User = Depends(current_active_user),
+    service: GraphService = Depends(get_graph_service),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[GraphEdgeRead]:
+    return await service.list_edges(user, graph_id, skip=skip, limit=limit)
+
+
+@router.delete(
+    "/{graph_id}/edges/{edge_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete graph edge",
+)
+async def delete_graph_edge(
+    graph_id: str,
+    edge_id: str,
+    user: User = Depends(current_active_user),
+    service: GraphService = Depends(get_graph_service),
+) -> Response:
+    await service.delete_edge(user, graph_id, edge_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
