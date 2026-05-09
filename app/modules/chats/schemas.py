@@ -7,12 +7,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ChatCreate(BaseModel):
     node_id: str
+    chat_type: Literal["theory", "task"] = "theory"
 
 
 class ChatRead(BaseModel):
     id: PydanticObjectId
     node_id: PydanticObjectId
     title: str
+    chat_type: Literal["theory", "task"]
     created_at: datetime
     updated_at: datetime
 

@@ -16,7 +16,7 @@ class ChatService:
             node_id = PydanticObjectId(data.node_id)
         except (TypeError, ValueError):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid node_id")
-        chat = await self.repo.create(user.id, node_id)
+        chat = await self.repo.create(user.id, node_id, chat_type=data.chat_type)
         return ChatRead.model_validate(chat)
 
     async def list_chats(self, user: User, node_id: str, skip: int = 0, limit: int = 100) -> list[ChatRead]:

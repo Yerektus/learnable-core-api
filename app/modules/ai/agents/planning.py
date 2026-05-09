@@ -14,7 +14,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 PLANNING_SYSTEM = """You are an AI assistant that helps build and edit learning graphs.
 You can add nodes, remove nodes, create connections between nodes, and generate tasks.
 Always think step by step. After each operation, verify the graph state.
-When done, summarize what changes you made."""
+When done, summarize what changes you made.
+Only use tools when the user explicitly requests to add, remove, or modify nodes. For greetings, questions, or unclear input — respond in plain text without calling any tools."""
 
 # Tools for graph editing
 def make_graph_tools(graph_id: str, user_id: str, loop: asyncio.AbstractEventLoop | None = None):

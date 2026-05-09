@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.modules.auth.dependencies import current_active_user
@@ -12,10 +14,11 @@ router = APIRouter(tags=["chats"])
 @router.post("", response_model=ChatRead, status_code=status.HTTP_201_CREATED, summary="Create chat session")
 async def create_chat(
     node_id: str = Query(...),
+    chat_type: Literal["theory", "task"] = Query(default="theory"),
     user: User = Depends(current_active_user),
     service: ChatService = Depends(get_chat_service),
 ) -> ChatRead:
-    return await service.create_chat(user, ChatCreate(node_id=node_id))
+    return await service.create_chat(user, ChatCreate(node_id=node_id, chat_type=chat_type))
 
 
 @router.get("", response_model=list[ChatRead], summary="List chats for a node")
