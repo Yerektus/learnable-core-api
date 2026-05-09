@@ -17,7 +17,7 @@ Always think step by step. After each operation, verify the graph state.
 When done, summarize what changes you made."""
 
 # Tools for graph editing
-def make_graph_tools(graph_id: str, user_id: str):
+def make_graph_tools(graph_id: str, user_id: str, loop: asyncio.AbstractEventLoop | None = None):
 
     @tool
     def add_node(title: str, description: str) -> str:
@@ -47,7 +47,34 @@ def make_graph_tools(graph_id: str, user_id: str):
         snapshot = gq.snapshot_graph_state(graph_id)
         return json.dumps(snapshot, indent=2)
 
-    return [add_node, remove_node, connect_nodes, get_graph_state]
+    @tool
+    def create_task(title: str, description: str, node_id: str = "") -> str:
+        """Create a task in the kanban board linked to the current graph and optionally to a specific node."""
+        from app.modules.kanban.models import Task, TaskStatus
+        from beanie import PydanticObjectId
+
+        async def _insert() -> str:
+            task = Task(
+                owner_id=PydanticObjectId(user_id),
+                title=title[:120].strip() or "Task",
+                description=description[:1000].strip() if description else None,
+                graph_id=graph_id,
+                topic_id=node_id if node_id else None,
+                source="planning",
+                status=TaskStatus.NOT_STARTED,
+            )
+            await task.insert()
+            return str(task.id)
+
+        if loop is not None:
+            future = asyncio.run_coroutine_threadsafe(_insert(), loop)
+            task_id = future.result(timeout=10)
+        else:
+            task_id = asyncio.run(_insert())
+
+        return f"Created task '{title[:120]}' with id {task_id}"
+
+    return [add_node, remove_node, connect_nodes, get_graph_state, create_task]
 
 
 async def stream_planning(
@@ -64,7 +91,7 @@ async def stream_planning(
     # Snapshot before agent starts
     snapshot = gq.snapshot_graph_state(graph_id)
 
-    tools = make_graph_tools(graph_id, user_id)
+    tools = make_graph_tools(graph_id, user_id, loop=loop)
     llm = get_llm().bind_tools(tools)
 
     messages = [
