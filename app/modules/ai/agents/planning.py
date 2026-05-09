@@ -15,7 +15,7 @@ PLANNING_SYSTEM = """You are an AI assistant that helps build and edit learning 
 You can add nodes, remove nodes, create connections between nodes, and generate tasks.
 Always think step by step. After each operation, verify the graph state.
 When done, summarize what changes you made.
-Only use tools when the user explicitly requests to add, remove, or modify nodes. For greetings, questions, or unclear input — respond in plain text without calling any tools."""
+Only call tools when the user explicitly asks to modify the graph. For greetings or unclear messages — respond in plain text only, do not call get_graph_state or any other tool."""
 
 # Tools for graph editing
 def make_graph_tools(graph_id: str, user_id: str, loop: asyncio.AbstractEventLoop | None = None):
@@ -24,7 +24,27 @@ def make_graph_tools(graph_id: str, user_id: str, loop: asyncio.AbstractEventLoo
     def add_node(title: str, description: str) -> str:
         """Add a new topic node to the graph."""
         from app.modules.ai.graph.embeddings import embed
-        node_id = str(uuid.uuid4())
+        from app.modules.graphs.models import GraphNode
+        from beanie import PydanticObjectId
+
+        async def _insert() -> str:
+            gn = GraphNode(
+                owner_id=PydanticObjectId(user_id),
+                graph_id=PydanticObjectId(graph_id),
+                title=title,
+                description=description,
+                position_x=0.0,
+                position_y=0.0,
+            )
+            await gn.insert()
+            return str(gn.id)
+
+        if loop is not None:
+            future = asyncio.run_coroutine_threadsafe(_insert(), loop)
+            node_id = future.result(timeout=10)
+        else:
+            node_id = asyncio.run(_insert())
+
         emb = embed(f"{title} {description}")
         gq.create_node(node_id, graph_id, title, description, emb)
         return f"Created node '{title}' with id {node_id}"
@@ -32,8 +52,24 @@ def make_graph_tools(graph_id: str, user_id: str, loop: asyncio.AbstractEventLoo
     @tool
     def remove_node(node_id: str) -> str:
         """Remove a node from the graph by ID."""
+        from app.modules.graphs.models import GraphNode
+        from beanie import PydanticObjectId
+
         g = get_graph()
         g.query("MATCH (n:Node {id: $id}) DETACH DELETE n", {"id": node_id})
+
+        async def _delete() -> None:
+            try:
+                await GraphNode.find(GraphNode.id == PydanticObjectId(node_id)).delete()
+            except Exception:
+                pass
+
+        if loop is not None:
+            future = asyncio.run_coroutine_threadsafe(_delete(), loop)
+            future.result(timeout=10)
+        else:
+            asyncio.run(_delete())
+
         return f"Removed node {node_id}"
 
     @tool
@@ -46,7 +82,12 @@ def make_graph_tools(graph_id: str, user_id: str, loop: asyncio.AbstractEventLoo
     def get_graph_state() -> str:
         """Read current graph structure."""
         snapshot = gq.snapshot_graph_state(graph_id)
-        return json.dumps(snapshot, indent=2)
+        display = {
+            "nodes": [{"id": n["id"], "title": n["title"], "description": n["description"]} for n in snapshot["nodes"]],
+            "edges": [{"from": e["from"], "to": e["to"]} for e in snapshot["edges"]],
+            "deadlines": [{"title": d["title"], "date": d["date"]} for d in snapshot["deadlines"]],
+        }
+        return json.dumps(display, indent=2)
 
     @tool
     def create_task(title: str, description: str, node_id: str = "") -> str:
