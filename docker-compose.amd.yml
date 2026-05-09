@@ -1,0 +1,40 @@
+# AMD Developer Cloud — GPU instance (MI300X)
+# Run on the GPU droplet: docker compose -f docker-compose.amd.yml up -d
+#
+# This starts a vLLM server with Qwen3.5-397B-A17B on ROCm.
+# After it's up, set LLM_BASE_URL=http://<GPU_INSTANCE_IP>:8001/v1
+# on the CPU instance running docker-compose.yml.
+
+services:
+  vllm:
+    image: rocm/vllm:rocm6.2_mi300_ubuntu22.04_py3.11_vllm_0.6.4
+    container_name: learnable-vllm
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+    ipc: host
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN}
+    command: >
+      --model Qwen/Qwen3.5-397B-A17B
+      --tensor-parallel-size 8
+      --max-model-len 32768
+      --gpu-memory-utilization 0.92
+      --enable-expert-parallel
+      --served-model-name qwen
+      --host 0.0.0.0
+      --port 8000
+
+volumes:
+  huggingface_cache:
