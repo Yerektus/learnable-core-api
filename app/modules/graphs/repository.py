@@ -1,7 +1,13 @@
 from beanie import PydanticObjectId
 
-from app.modules.graphs.models import Graph, GraphNode
-from app.modules.graphs.schemas import GraphCreate, GraphNodeCreate, GraphNodeUpdate, GraphUpdate
+from app.modules.graphs.models import Graph, GraphEdge, GraphNode
+from app.modules.graphs.schemas import (
+    GraphCreate,
+    GraphEdgeCreate,
+    GraphNodeCreate,
+    GraphNodeUpdate,
+    GraphUpdate,
+)
 
 
 class GraphRepository:
@@ -49,6 +55,8 @@ class GraphRepository:
         return await graph.save()
 
     async def delete(self, graph: Graph) -> None:
+        await GraphEdge.find(GraphEdge.graph_id == graph.id).delete()
+        await GraphNode.find(GraphNode.graph_id == graph.id).delete()
         await graph.delete()
     
     
@@ -122,4 +130,83 @@ class GraphRepository:
         return await node.save()
 
     async def delete_node(self, node: GraphNode) -> None:
+        await GraphEdge.find(
+            GraphEdge.graph_id == node.graph_id,
+            GraphEdge.source_node_id == node.id,
+        ).delete()
+        await GraphEdge.find(
+            GraphEdge.graph_id == node.graph_id,
+            GraphEdge.target_node_id == node.id,
+        ).delete()
         await node.delete()
+
+    async def get_edges_by_graph(
+        self,
+        graph_id: PydanticObjectId | str,
+        owner_id: PydanticObjectId,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[GraphEdge]:
+        try:
+            graph_object_id = PydanticObjectId(graph_id)
+        except (TypeError, ValueError):
+            return []
+
+        return (
+            await GraphEdge.find(
+                GraphEdge.graph_id == graph_object_id,
+                GraphEdge.owner_id == owner_id,
+            )
+            .sort("created_at")
+            .skip(skip)
+            .limit(limit)
+            .to_list()
+        )
+
+    async def create_edge(
+        self,
+        graph_id: PydanticObjectId | str,
+        owner_id: PydanticObjectId,
+        data: GraphEdgeCreate,
+    ) -> GraphEdge:
+        graph_object_id = PydanticObjectId(graph_id)
+
+        existing_edge = await GraphEdge.find_one(
+            GraphEdge.graph_id == graph_object_id,
+            GraphEdge.owner_id == owner_id,
+            GraphEdge.source_node_id == data.source_node_id,
+            GraphEdge.target_node_id == data.target_node_id,
+        )
+
+        if existing_edge is not None:
+            return existing_edge
+
+        edge = GraphEdge(
+            graph_id=graph_object_id,
+            owner_id=owner_id,
+            source_node_id=data.source_node_id,
+            target_node_id=data.target_node_id,
+        )
+
+        return await edge.insert()
+
+    async def get_edge_by_id_and_graph(
+        self,
+        edge_id: PydanticObjectId | str,
+        graph_id: PydanticObjectId | str,
+        owner_id: PydanticObjectId,
+    ) -> GraphEdge | None:
+        try:
+            edge_object_id = PydanticObjectId(edge_id)
+            graph_object_id = PydanticObjectId(graph_id)
+        except (TypeError, ValueError):
+            return None
+
+        return await GraphEdge.find_one(
+            GraphEdge.id == edge_object_id,
+            GraphEdge.graph_id == graph_object_id,
+            GraphEdge.owner_id == owner_id,
+        )
+
+    async def delete_edge(self, edge: GraphEdge) -> None:
+        await edge.delete()
