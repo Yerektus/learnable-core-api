@@ -54,14 +54,14 @@ def create_precedes(from_node_id: str, to_node_id: str):
         {"aid": from_node_id, "bid": to_node_id}
     )
 
-def create_deadline(deadline_id: str, graph_id: str, title: str, date: str):
+def create_deadline(deadline_id: str, graph_id: str, title: str, date: str, type: str = "assignment"):
     g = get_graph()
     g.query(
         "MATCH (gr:Graph {id: $gid}) "
         "MERGE (d:Deadline {id: $did}) "
-        "SET d.title = $title, d.date = $date "
+        "SET d.title = $title, d.date = $date, d.type = $type "
         "MERGE (gr)-[:HAS_DEADLINE]->(d)",
-        {"gid": graph_id, "did": deadline_id, "title": title, "date": date}
+        {"gid": graph_id, "did": deadline_id, "title": title, "date": date, "type": type}
     )
 
 def link_deadline_to_node(deadline_id: str, node_id: str):
@@ -172,11 +172,11 @@ def get_graph_deadlines(graph_id: str, user_id: str) -> list[dict]:
     result = g.query(
         "MATCH (:User {id: $uid})-[:OWNS]->(gr:Graph {id: $gid})-[:HAS_DEADLINE]->(d:Deadline) "
         "OPTIONAL MATCH (d)-[:COVERS]->(n:Node) "
-        "RETURN d.id, d.title, d.date, collect(n.id) as node_ids",
+        "RETURN d.id, d.title, d.date, d.type, collect(n.id) as node_ids",
         {"uid": user_id, "gid": graph_id}
     )
     return [
-        {"id": row[0], "title": row[1], "date": row[2], "node_ids": row[3]}
+        {"id": row[0], "title": row[1], "date": row[2], "type": row[3] or "assignment", "node_ids": row[4]}
         for row in result.result_set
     ]
 
@@ -186,11 +186,11 @@ def get_node_deadlines(node_id: str, user_id: str) -> list[dict]:
     result = g.query(
         "MATCH (:User {id: $uid})-[:OWNS]->(:Graph)-[:HAS_NODE]->(n:Node {id: $nid})"
         "<-[:COVERS]-(d:Deadline) "
-        "RETURN d.id, d.title, d.date",
+        "RETURN d.id, d.title, d.date, d.type",
         {"uid": user_id, "nid": node_id}
     )
     return [
-        {"id": row[0], "title": row[1], "date": row[2]}
+        {"id": row[0], "title": row[1], "date": row[2], "type": row[3] or "assignment"}
         for row in result.result_set
     ]
 
@@ -203,12 +203,12 @@ def snapshot_graph_state(graph_id: str) -> dict:
         {"gid": graph_id},
     )
     edges = g.query("MATCH (gr:Graph {id: $gid})-[:HAS_NODE]->(a:Node)-[:PRECEDES]->(b:Node) RETURN a.id, b.id", {"gid": graph_id})
-    deadlines = g.query("MATCH (gr:Graph {id: $gid})-[:HAS_DEADLINE]->(d:Deadline) RETURN d.id, d.title, d.date", {"gid": graph_id})
+    deadlines = g.query("MATCH (gr:Graph {id: $gid})-[:HAS_DEADLINE]->(d:Deadline) RETURN d.id, d.title, d.date, d.type", {"gid": graph_id})
     covers = g.query("MATCH (gr:Graph {id: $gid})-[:HAS_DEADLINE]->(d:Deadline)-[:COVERS]->(n:Node) RETURN d.id, n.id", {"gid": graph_id})
     return {
         "nodes": [{"id": r[0], "title": r[1], "description": r[2], "embedding": r[3]} for r in nodes.result_set],
         "edges": [{"from": r[0], "to": r[1]} for r in edges.result_set],
-        "deadlines": [{"id": r[0], "title": r[1], "date": r[2]} for r in deadlines.result_set],
+        "deadlines": [{"id": r[0], "title": r[1], "date": r[2], "type": r[3] or "assignment"} for r in deadlines.result_set],
         "covers": [{"deadline_id": r[0], "node_id": r[1]} for r in covers.result_set],
     }
 
@@ -241,9 +241,9 @@ def restore_graph_state(graph_id: str, snapshot: dict):
     for d in snapshot["deadlines"]:
         g.query(
             "MATCH (gr:Graph {id: $gid}) "
-            "CREATE (dl:Deadline {id: $id, title: $t, date: $date}) "
+            "CREATE (dl:Deadline {id: $id, title: $t, date: $date, type: $type}) "
             "CREATE (gr)-[:HAS_DEADLINE]->(dl)",
-            {"gid": graph_id, "id": d["id"], "t": d["title"], "date": d["date"]},
+            {"gid": graph_id, "id": d["id"], "t": d["title"], "date": d["date"], "type": d.get("type", "assignment")},
         )
     for c in snapshot["covers"]:
         g.query("MATCH (d:Deadline {id: $did}), (n:Node {id: $nid}) CREATE (d)-[:COVERS]->(n)",

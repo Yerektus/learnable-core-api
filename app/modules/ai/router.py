@@ -67,7 +67,7 @@ async def _persist_generated_graph(
 
     for dl in generated.deadlines:
         dl_id = str(uuid.uuid4())
-        await _run_sync(gq.create_deadline, dl_id, graph_id, dl.title, dl.date.isoformat())
+        await _run_sync(gq.create_deadline, dl_id, graph_id, dl.title, dl.date.isoformat(), dl.type)
         for ni in dl.node_indices:
             node_id_for_dl = order_to_id.get(ni) or index_to_id.get(ni)
             if node_id_for_dl:

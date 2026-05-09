@@ -13,6 +13,7 @@ class GeneratedDeadline(BaseModel):
     title: str
     date: date  # validated YYYY-MM-DD; Pydantic rejects bad format and invalid calendar dates
     node_indices: list[int]
+    type: Literal["exam", "quiz", "assignment"] = "assignment"
 
 class GeneratedGraph(BaseModel):
     nodes: list[GeneratedNode]

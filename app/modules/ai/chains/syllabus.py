@@ -8,6 +8,11 @@ Create nodes for each major topic/lecture. Connect them with PRECEDES edges show
 
 Dates must be in YYYY-MM-DD format.
 
+For each deadline set the type field:
+- type="exam" for midterms, finals, and any other exams
+- type="quiz" for quizzes, tests, and short assessments
+- type="assignment" for homework, projects, lab submissions, and all other deadlines
+
 Syllabus content:
 {text}
 
