@@ -195,18 +195,18 @@ def get_node_deadlines(node_id: str, user_id: str) -> list[dict]:
     ]
 
 def snapshot_graph_state(graph_id: str) -> dict:
-    """Serialize full graph state for rollback, including embeddings."""
+    """Serialize full graph state for rollback."""
     g = get_graph()
     nodes = g.query(
         "MATCH (gr:Graph {id: $gid})-[:HAS_NODE]->(n:Node) "
-        "RETURN n.id, n.title, n.description, n.embedding",
+        "RETURN n.id, n.title, n.description",
         {"gid": graph_id},
     )
     edges = g.query("MATCH (gr:Graph {id: $gid})-[:HAS_NODE]->(a:Node)-[:PRECEDES]->(b:Node) RETURN a.id, b.id", {"gid": graph_id})
     deadlines = g.query("MATCH (gr:Graph {id: $gid})-[:HAS_DEADLINE]->(d:Deadline) RETURN d.id, d.title, d.date, d.type", {"gid": graph_id})
     covers = g.query("MATCH (gr:Graph {id: $gid})-[:HAS_DEADLINE]->(d:Deadline)-[:COVERS]->(n:Node) RETURN d.id, n.id", {"gid": graph_id})
     return {
-        "nodes": [{"id": r[0], "title": r[1], "description": r[2], "embedding": r[3]} for r in nodes.result_set],
+        "nodes": [{"id": r[0], "title": r[1], "description": r[2]} for r in nodes.result_set],
         "edges": [{"from": r[0], "to": r[1]} for r in edges.result_set],
         "deadlines": [{"id": r[0], "title": r[1], "date": r[2], "type": r[3] or "assignment"} for r in deadlines.result_set],
         "covers": [{"deadline_id": r[0], "node_id": r[1]} for r in covers.result_set],

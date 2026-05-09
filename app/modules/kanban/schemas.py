@@ -11,9 +11,10 @@ class TaskCreate(BaseModel):
 
     title: str = Field(min_length=1, max_length=120)
     description: Optional[str] = Field(default=None, max_length=1000)
+    status: TaskStatus = TaskStatus.NOT_STARTED
     priority: TaskPriority = TaskPriority.MEDIUM
-    graph_id: Optional[PydanticObjectId] = None
-    topic_id: Optional[PydanticObjectId] = None
+    graph_id: Optional[str] = None
+    topic_id: Optional[str] = None
     source: str = Field(default="manual", max_length=50)
     tags: list[str] = Field(default_factory=list)
 
@@ -48,8 +49,8 @@ class TaskUpdate(BaseModel):
     description: Optional[str] = Field(default=None, max_length=1000)
     status: Optional[TaskStatus] = None
     priority: Optional[TaskPriority] = None
-    graph_id: Optional[PydanticObjectId] = None
-    topic_id: Optional[PydanticObjectId] = None
+    graph_id: Optional[str] = None
+    topic_id: Optional[str] = None
     source: Optional[str] = Field(default=None, max_length=50)
     tags: Optional[list[str]] = None
 
