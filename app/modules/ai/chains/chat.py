@@ -154,7 +154,7 @@ async def stream_chat(
                 await chat_doc.save()
 
     # Auto-create Task on first message of a task chat
-    if chat_type == "task" and is_first_message:
+    if chat_type == "task" and is_first_message and graph_id is not None:
         from app.modules.kanban.models import Task, TaskStatus
         task_title = message[:120].strip() or "Task"
         await Task(

@@ -31,8 +31,13 @@ class ChatRepository:
             .to_list()
         )
 
-    async def create(self, user_id: PydanticObjectId, node_id: PydanticObjectId) -> Chat:
-        chat = Chat(user_id=user_id, node_id=node_id)
+    async def create(
+        self,
+        user_id: PydanticObjectId,
+        node_id: PydanticObjectId,
+        chat_type: str = "theory",
+    ) -> Chat:
+        chat = Chat(user_id=user_id, node_id=node_id, chat_type=chat_type)
         return await chat.insert()
 
     async def delete(self, chat: Chat) -> None:

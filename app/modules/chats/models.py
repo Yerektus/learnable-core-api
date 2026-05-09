@@ -13,6 +13,7 @@ class Chat(Document):
     user_id: PydanticObjectId
     node_id: PydanticObjectId
     title: str = Field(default="", max_length=200)
+    chat_type: Literal["theory", "task"] = Field(default="theory")
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 
