@@ -150,6 +150,14 @@ async def chat(
     if chat_doc is None or str(chat_doc.node_id) != node_id:
         raise HTTPException(status_code=404, detail="Chat not found")
 
+    from app.modules.graphs.models import GraphNode
+    try:
+        node_oid = PydanticObjectId(node_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Invalid node_id")
+    graph_node = await GraphNode.find_one(GraphNode.id == node_oid, GraphNode.owner_id == user.id)
+    graph_id = str(graph_node.graph_id) if graph_node is not None else None
+
     async def event_generator():
         async for token in stream_chat(
             user_id=str(user.id),
@@ -157,6 +165,7 @@ async def chat(
             message=request.message,
             chat_type=request.chat_type,
             thread_id=request.thread_id,
+            graph_id=graph_id,
         ):
             yield {"data": token}
 
