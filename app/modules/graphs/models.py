@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from beanie import Document, Insert, PydanticObjectId, Replace, Save, SaveChanges, before_event
 from pydantic import Field, field_validator
@@ -57,6 +57,8 @@ class GraphNode(Document):
 
     title: str = Field(min_length=1, max_length=120)
 
+    node_type: Literal["lesson", "topic", "cluster", "quiz"] = "lesson"
+
     description: Optional[str] = Field(
         default=None,
         max_length=1000,
@@ -65,6 +67,14 @@ class GraphNode(Document):
     position_x: float = 0
 
     position_y: float = 0
+
+    color: Optional[str] = Field(default=None, max_length=32)
+
+    size: Optional[float] = None
+
+    accent: Optional[Literal["left", "right"]] = None
+
+    node_ids: list[str] = Field(default_factory=list)
 
     created_at: datetime = Field(default_factory=utc_now)
 
@@ -87,5 +97,44 @@ class GraphNode(Document):
             IndexModel(
                 [("graph_id", ASCENDING)],
                 name="idx_nodes_graph",
+            ),
+        ]
+
+
+class GraphEdge(Document):
+
+    owner_id: PydanticObjectId
+
+    graph_id: PydanticObjectId
+
+    source_node_id: PydanticObjectId
+
+    target_node_id: PydanticObjectId
+
+    created_at: datetime = Field(default_factory=utc_now)
+
+    updated_at: datetime = Field(default_factory=utc_now)
+
+    @before_event(Insert)
+    def set_created_timestamps(self) -> None:
+        now = utc_now()
+        self.created_at = now
+        self.updated_at = now
+
+    @before_event(Replace, Save, SaveChanges)
+    def set_updated_timestamp(self) -> None:
+        self.updated_at = utc_now()
+
+    class Settings:
+        name = "graph_edges"
+
+        indexes = [
+            IndexModel(
+                [("graph_id", ASCENDING)],
+                name="idx_edges_graph",
+            ),
+            IndexModel(
+                [("graph_id", ASCENDING), ("source_node_id", ASCENDING), ("target_node_id", ASCENDING)],
+                name="idx_edges_graph_source_target",
             ),
         ]

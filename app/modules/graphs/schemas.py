@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from beanie import PydanticObjectId
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -67,6 +67,8 @@ class GraphNodeCreate(BaseModel):
 
     title: str = Field(min_length=1, max_length=120)
 
+    node_type: Literal["lesson", "topic", "cluster", "quiz"] = "lesson"
+
     description: Optional[str] = Field(
         default=None,
         max_length=1000,
@@ -75,6 +77,14 @@ class GraphNodeCreate(BaseModel):
     position_x: float = 0
 
     position_y: float = 0
+
+    color: Optional[str] = Field(default=None, max_length=32)
+
+    size: Optional[float] = None
+
+    accent: Optional[Literal["left", "right"]] = None
+
+    node_ids: list[str] = Field(default_factory=list)
 
 
 class GraphNodeUpdate(BaseModel):
@@ -94,6 +104,14 @@ class GraphNodeUpdate(BaseModel):
 
     position_y: Optional[float] = None
 
+    color: Optional[str] = Field(default=None, max_length=32)
+
+    size: Optional[float] = None
+
+    accent: Optional[Literal["left", "right"]] = None
+
+    node_ids: Optional[list[str]] = None
+
 
 class GraphNodeRead(BaseModel):
 
@@ -105,11 +123,47 @@ class GraphNodeRead(BaseModel):
 
     title: str
 
+    node_type: Literal["lesson", "topic", "cluster", "quiz"] = "lesson"
+
     description: Optional[str]
 
     position_x: float
 
     position_y: float
+
+    color: Optional[str] = None
+
+    size: Optional[float] = None
+
+    accent: Optional[Literal["left", "right"]] = None
+
+    node_ids: list[str] = Field(default_factory=list)
+
+    created_at: datetime
+
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GraphEdgeCreate(BaseModel):
+
+    source_node_id: PydanticObjectId
+
+    target_node_id: PydanticObjectId
+
+
+class GraphEdgeRead(BaseModel):
+
+    id: PydanticObjectId
+
+    owner_id: PydanticObjectId
+
+    graph_id: PydanticObjectId
+
+    source_node_id: PydanticObjectId
+
+    target_node_id: PydanticObjectId
 
     created_at: datetime
 

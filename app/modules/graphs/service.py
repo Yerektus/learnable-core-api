@@ -4,6 +4,8 @@ from app.modules.graphs.repository import GraphRepository
 #from app.modules.graphs.schemas import GraphCreate, GraphRead, GraphUpdate
 from app.modules.graphs.schemas import (
     GraphCreate,
+    GraphEdgeCreate,
+    GraphEdgeRead,
     GraphNodeCreate,
     GraphNodeRead,
     GraphNodeUpdate,
@@ -171,3 +173,98 @@ class GraphService:
             )
 
         await self.repo.delete_node(node)
+
+    async def list_edges(
+        self,
+        user: User,
+        graph_id: str,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[GraphEdgeRead]:
+
+        graph = await self.repo.get_by_id_and_owner(
+            graph_id,
+            user.id,
+        )
+
+        if graph is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Graph not found",
+            )
+
+        edges = await self.repo.get_edges_by_graph(
+            graph_id,
+            user.id,
+            skip=skip,
+            limit=limit,
+        )
+
+        return [
+            GraphEdgeRead.model_validate(edge)
+            for edge in edges
+        ]
+
+    async def create_edge(
+        self,
+        user: User,
+        graph_id: str,
+        data: GraphEdgeCreate,
+    ) -> GraphEdgeRead:
+
+        graph = await self.repo.get_by_id_and_owner(
+            graph_id,
+            user.id,
+        )
+
+        if graph is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Graph not found",
+            )
+
+        source_node = await self.repo.get_node_by_id_and_graph(
+            data.source_node_id,
+            graph_id,
+            user.id,
+        )
+        target_node = await self.repo.get_node_by_id_and_graph(
+            data.target_node_id,
+            graph_id,
+            user.id,
+        )
+
+        if source_node is None or target_node is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Edge node not found",
+            )
+
+        edge = await self.repo.create_edge(
+            graph_id,
+            user.id,
+            data,
+        )
+
+        return GraphEdgeRead.model_validate(edge)
+
+    async def delete_edge(
+        self,
+        user: User,
+        graph_id: str,
+        edge_id: str,
+    ) -> None:
+
+        edge = await self.repo.get_edge_by_id_and_graph(
+            edge_id,
+            graph_id,
+            user.id,
+        )
+
+        if edge is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Edge not found",
+            )
+
+        await self.repo.delete_edge(edge)
