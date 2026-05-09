@@ -46,6 +46,7 @@ async def stream_chat(
     message: str,
     chat_type: str,
     thread_id: str,
+    graph_id: str | None = None,
 ) -> AsyncIterator[str]:
     from app.modules.chats.models import Chat, ChatMessage as ChatMsg
 
@@ -151,6 +152,19 @@ async def stream_chat(
             if chat_doc is not None and not chat_doc.title:
                 chat_doc.title = title
                 await chat_doc.save()
+
+    # Auto-create Task on first message of a task chat
+    if chat_type == "task" and is_first_message:
+        from app.modules.kanban.models import Task, TaskStatus
+        task_title = message[:120].strip() or "Task"
+        await Task(
+            owner_id=PydanticObjectId(user_id),
+            title=task_title,
+            graph_id=graph_id,
+            topic_id=node_id,
+            source="chat",
+            status=TaskStatus.NOT_STARTED,
+        ).insert()
 
 
 async def _link_similar_bg(error_id: str) -> None:
