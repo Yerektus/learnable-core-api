@@ -138,13 +138,25 @@ async def chat(
     request: ChatRequest,
     user: User = Depends(current_active_user),
 ):
+    from app.modules.chats.models import Chat as ChatDoc
+    from beanie import PydanticObjectId
+
+    try:
+        chat_oid = PydanticObjectId(request.thread_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Invalid thread_id")
+
+    chat_doc = await ChatDoc.find_one(ChatDoc.id == chat_oid, ChatDoc.user_id == user.id)
+    if chat_doc is None or str(chat_doc.node_id) != node_id:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
     async def event_generator():
         async for token in stream_chat(
             user_id=str(user.id),
             node_id=node_id,
             message=request.message,
             chat_type=request.chat_type,
-            chat_history=[m.model_dump() for m in request.chat_history],
+            thread_id=request.thread_id,
         ):
             yield {"data": token}
 

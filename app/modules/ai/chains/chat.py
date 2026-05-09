@@ -5,8 +5,11 @@ import uuid
 from typing import AsyncIterator
 
 logger = logging.getLogger(__name__)
+
+from beanie import PydanticObjectId
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.tools import tool
+
 from app.modules.ai.llm import get_llm
 from app.modules.ai.graph.queries import (
     ensure_user_node, get_node_context, search_similar_errors,
@@ -42,10 +45,24 @@ async def stream_chat(
     node_id: str,
     message: str,
     chat_type: str,
-    chat_history: list[dict],
+    thread_id: str,
 ) -> AsyncIterator[str]:
+    from app.modules.chats.models import Chat, ChatMessage as ChatMsg
 
     loop = asyncio.get_running_loop()
+
+    # Load last 20 messages from MongoDB (ownership already verified by router)
+    chat_oid = PydanticObjectId(thread_id)
+    raw_messages = (
+        await ChatMsg.find(ChatMsg.chat_id == chat_oid)
+        .sort("-created_at")
+        .limit(20)
+        .to_list()
+    )
+    is_first_message = len(raw_messages) == 0
+    chat_history = [{"role": m.role, "content": m.content} for m in reversed(raw_messages)]
+
+    # FalkorDB context
     await loop.run_in_executor(None, ensure_user_node, user_id)
     node_ctx = await loop.run_in_executor(None, get_node_context, user_id, node_id)
     question_emb = await loop.run_in_executor(None, embed, message)
@@ -71,10 +88,8 @@ async def stream_chat(
         error_context=error_context,
     )
 
-    history = chat_history[-20:]
-
     messages = [SystemMessage(content=system)]
-    for msg in history:
+    for msg in chat_history:
         if msg["role"] == "user":
             messages.append(HumanMessage(content=msg["content"]))
         else:
@@ -83,14 +98,15 @@ async def stream_chat(
 
     llm = get_llm(streaming=True).bind_tools([record_error_tool])
 
+    full_response = ""
     pending_error_descriptions: list[str] = []
     tool_call_accumulator: dict[int, dict] = {}
 
     async for chunk in llm.astream(messages):
         if chunk.content:
+            full_response += chunk.content
             yield chunk.content
 
-        # Accumulate streamed tool_call deltas
         if chunk.tool_call_chunks:
             for delta in chunk.tool_call_chunks:
                 idx = delta.get("index", 0)
@@ -101,7 +117,7 @@ async def stream_chat(
                 if delta.get("args"):
                     tool_call_accumulator[idx]["args"] += delta["args"]
 
-    # After stream: process completed tool calls
+    # Process completed tool calls
     for tc in tool_call_accumulator.values():
         if tc["name"] == "record_error_tool":
             try:
@@ -122,10 +138,25 @@ async def stream_chat(
         task = asyncio.create_task(_link_similar_bg(error_id))
         task.add_done_callback(_log_task_exception)
 
+    # Save user message and assistant response to MongoDB
+    await ChatMsg(chat_id=chat_oid, role="user", content=message).insert()
+    if full_response:
+        await ChatMsg(chat_id=chat_oid, role="assistant", content=full_response).insert()
+
+    # Auto-generate title from first user message
+    if is_first_message:
+        title = message[:80].strip()
+        if title:
+            chat_doc = await Chat.get(chat_oid)
+            if chat_doc is not None and not chat_doc.title:
+                chat_doc.title = title
+                await chat_doc.save()
+
 
 async def _link_similar_bg(error_id: str) -> None:
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, find_and_link_similar_errors, error_id)
+
 
 def _log_task_exception(task: asyncio.Task) -> None:
     if not task.cancelled() and task.exception() is not None:

@@ -27,15 +27,10 @@ class GenerateGraphResponse(BaseModel):
 
 
 # ── Chat ──────────────────────────────────────────────────────
-class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str
-
 class ChatRequest(BaseModel):
     message: str
     chat_type: Literal["theory", "task"]
-    node_id: str
-    chat_history: list[ChatMessage] = []
+    thread_id: str
 
 
 # ── Materials ─────────────────────────────────────────────────

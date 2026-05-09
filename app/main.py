@@ -13,6 +13,7 @@ from app.modules.graphs.router import router as graphs_router
 from app.modules.users.router import admin_router, router as users_router
 from app.modules.kanban.router import router as kanban_router
 from app.modules.ai.router import router as ai_router
+from app.modules.chats.router import router as chats_router
 from app.modules.ai.graph.schema import init_falkordb_schema
 from app.modules.ai.graph.embeddings import warmup as warmup_embeddings
 
@@ -48,6 +49,7 @@ app = FastAPI(
         {"name": "auth", "description": "Registration, JWT login/logout, refresh tokens, email verification, password reset."},
         {"name": "users", "description": "Authenticated and public user profile operations."},
         {"name": "graphs", "description": "Authenticated graph creation and graph management operations."},
+        {"name": "chats", "description": "Chat session management and message history."},
         {"name": "admin", "description": "Administrative user operations."},
         {"name": "health", "description": "Service health checks."},
         {"name": "ai", "description": "AI-powered study features: graph generation, chat, materials, planning."},
@@ -70,6 +72,7 @@ app.include_router(graphs_router, prefix="/api/v1/graphs", tags=["graphs"])
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(kanban_router, prefix="/api/v1/kanban")
 app.include_router(ai_router, prefix="/api/v1/ai", tags=["ai"])
+app.include_router(chats_router, prefix="/api/v1/chats", tags=["chats"])
 
 
 @app.get("/health", tags=["health"], summary="Health check")

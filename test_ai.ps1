@@ -128,20 +128,34 @@ try {
     Fail "$($_.Exception.Message)"
 }
 
-# 9. Chat SSE
-Step "9. Chat SSE (LLM call, may take 30s)"
+# 9. Chat SSE (create session first, then stream)
+Step "9a. Create chat session"
+$THREAD_ID = $null
 try {
-    $chatJson = '{"message":"What is asyncio and why is it useful?","chat_type":"theory","node_id":"' + $NODE_ID + '","chat_history":[]}'
-    $chatJson | Set-Content -Encoding UTF8 "$env:TEMP\chat_body.json"
-    $raw = curl.exe -s -m 60 -N -X POST "$BaseUrl/api/v1/ai/nodes/$NODE_ID/chat" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "@$env:TEMP\chat_body.json"
-    $text = ($raw -join "") -replace "data: ", ""
-    if ($text.Length -gt 20) {
-        Pass "got $($text.Length) chars: $($text.Substring(0, [Math]::Min(100,$text.Length)))..."
-    } else {
-        Fail "too short: $text"
-    }
+    $r = Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/chats?node_id=$NODE_ID" -Headers $H
+    $THREAD_ID = $r.id
+    Pass "thread_id=$THREAD_ID"
 } catch {
-    Fail "$($_.Exception.Message)"
+    Fail "failed to create chat: $($_.Exception.Message)"
+}
+
+Step "9b. Chat SSE (LLM call, may take 30s)"
+if ($THREAD_ID) {
+    try {
+        $chatJson = '{"message":"What is asyncio and why is it useful?","chat_type":"theory","thread_id":"' + $THREAD_ID + '"}'
+        $chatJson | Set-Content -Encoding UTF8 "$env:TEMP\chat_body.json"
+        $raw = curl.exe -s -m 60 -N -X POST "$BaseUrl/api/v1/ai/nodes/$NODE_ID/chat" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "@$env:TEMP\chat_body.json"
+        $text = ($raw -join "") -replace "data: ", ""
+        if ($text.Length -gt 20) {
+            Pass "got $($text.Length) chars: $($text.Substring(0, [Math]::Min(100,$text.Length)))..."
+        } else {
+            Fail "too short: $text"
+        }
+    } catch {
+        Fail "$($_.Exception.Message)"
+    }
+} else {
+    Fail "skipped — no thread_id"
 }
 
 # 10. Materials
