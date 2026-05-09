@@ -155,7 +155,7 @@ if ($THREAD_ID) {
         Fail "$($_.Exception.Message)"
     }
 } else {
-    Fail "skipped — no thread_id"
+    Fail "skipped - no thread_id"
 }
 
 # 10. Materials
