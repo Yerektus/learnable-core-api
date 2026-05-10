@@ -168,8 +168,8 @@ async def stream_chat(
 
     # Auto-create subnode on first message of a theory chat
     if chat_type == "theory" and is_first_message and graph_id is not None:
-        from app.modules.graphs.models import GraphNode as GraphNodeDoc
-        from app.modules.ai.graph.queries import ensure_graph_node, create_node as falkor_create_node
+        from app.modules.graphs.models import GraphEdge, GraphNode as GraphNodeDoc
+        from app.modules.ai.graph.queries import ensure_graph_node, create_node as falkor_create_node, create_precedes
         node_title = message[:120].strip() or "Topic"
         subnode = GraphNodeDoc(
             owner_id=PydanticObjectId(user_id),
@@ -181,8 +181,15 @@ async def stream_chat(
         )
         await subnode.insert()
         node_emb = await loop.run_in_executor(None, embed, node_title)
+        await GraphEdge(
+            owner_id=PydanticObjectId(user_id),
+            graph_id=PydanticObjectId(graph_id),
+            source_node_id=PydanticObjectId(node_id),
+            target_node_id=subnode.id,
+        ).insert()
         await loop.run_in_executor(None, ensure_graph_node, graph_id, user_id)
         await loop.run_in_executor(None, falkor_create_node, str(subnode.id), graph_id, node_title, "", node_emb)
+        await loop.run_in_executor(None, create_precedes, node_id, str(subnode.id))
 
 
 async def _link_similar_bg(error_id: str) -> None:

@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import get_settings
-from app.modules.graphs.models import Graph, GraphNode, GraphEdge
+from app.modules.graphs.models import Graph, GraphNode, GraphEdge, NodeMaterial
 from app.modules.users.models import User
 from app.modules.kanban.models import Task
 from app.modules.chats.models import Chat, ChatMessage
@@ -13,7 +13,7 @@ async def init_database(app: FastAPI) -> None:
     settings = get_settings()
     client: AsyncIOMotorClient = AsyncIOMotorClient(settings.mongodb_url, uuidRepresentation="standard")
     app.state.mongodb_client = client
-    await init_beanie(database=client[settings.database_name], document_models=[User, Graph, GraphNode, GraphEdge, Task, Chat, ChatMessage])
+    await init_beanie(database=client[settings.database_name], document_models=[User, Graph, GraphNode, GraphEdge, NodeMaterial, Task, Chat, ChatMessage])
 
 
 async def close_database(app: FastAPI) -> None:

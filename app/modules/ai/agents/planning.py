@@ -46,7 +46,27 @@ def make_graph_tools(graph_id: str, user_id: str, loop: asyncio.AbstractEventLoo
             node_id = asyncio.run(_insert())
 
         emb = embed(f"{title} {description}")
+        snapshot = gq.snapshot_graph_state(graph_id)
+        existing_nodes = snapshot.get("nodes", [])
         gq.create_node(node_id, graph_id, title, description, emb)
+        if existing_nodes:
+            source_id = existing_nodes[-1]["id"]
+            gq.create_precedes(source_id, node_id)
+            from app.modules.graphs.models import GraphEdge
+
+            async def _insert_edge() -> None:
+                await GraphEdge(
+                    owner_id=PydanticObjectId(user_id),
+                    graph_id=PydanticObjectId(graph_id),
+                    source_node_id=PydanticObjectId(source_id),
+                    target_node_id=PydanticObjectId(node_id),
+                ).insert()
+
+            if loop is not None:
+                future = asyncio.run_coroutine_threadsafe(_insert_edge(), loop)
+                future.result(timeout=10)
+            else:
+                asyncio.run(_insert_edge())
         return f"Created node '{title}' with id {node_id}"
 
     @tool

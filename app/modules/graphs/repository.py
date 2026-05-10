@@ -1,12 +1,13 @@
 from beanie import PydanticObjectId
 
-from app.modules.graphs.models import Graph, GraphEdge, GraphNode
+from app.modules.graphs.models import Graph, GraphEdge, GraphNode, NodeMaterial
 from app.modules.graphs.schemas import (
     GraphCreate,
     GraphEdgeCreate,
     GraphNodeCreate,
     GraphNodeUpdate,
     GraphUpdate,
+    NodeMaterialCreate,
 )
 
 
@@ -55,6 +56,7 @@ class GraphRepository:
         return await graph.save()
 
     async def delete(self, graph: Graph) -> None:
+        await NodeMaterial.find(NodeMaterial.graph_id == graph.id).delete()
         await GraphEdge.find(GraphEdge.graph_id == graph.id).delete()
         await GraphNode.find(GraphNode.graph_id == graph.id).delete()
         await graph.delete()
@@ -130,6 +132,7 @@ class GraphRepository:
         return await node.save()
 
     async def delete_node(self, node: GraphNode) -> None:
+        await NodeMaterial.find(NodeMaterial.node_id == node.id).delete()
         await GraphEdge.find(
             GraphEdge.graph_id == node.graph_id,
             GraphEdge.source_node_id == node.id,
@@ -210,3 +213,62 @@ class GraphRepository:
 
     async def delete_edge(self, edge: GraphEdge) -> None:
         await edge.delete()
+
+    async def get_materials_by_node(
+        self,
+        graph_id: PydanticObjectId | str,
+        node_id: PydanticObjectId | str,
+        owner_id: PydanticObjectId,
+    ) -> list[NodeMaterial]:
+        try:
+            graph_object_id = PydanticObjectId(graph_id)
+            node_object_id = PydanticObjectId(node_id)
+        except (TypeError, ValueError):
+            return []
+        return (
+            await NodeMaterial.find(
+                NodeMaterial.graph_id == graph_object_id,
+                NodeMaterial.node_id == node_object_id,
+                NodeMaterial.owner_id == owner_id,
+            )
+            .sort("-created_at")
+            .to_list()
+        )
+
+    async def create_material(
+        self,
+        graph_id: PydanticObjectId | str,
+        node_id: PydanticObjectId | str,
+        owner_id: PydanticObjectId,
+        data: NodeMaterialCreate,
+    ) -> NodeMaterial:
+        material = NodeMaterial(
+            graph_id=PydanticObjectId(graph_id),
+            node_id=PydanticObjectId(node_id),
+            owner_id=owner_id,
+            **data.model_dump(),
+        )
+        return await material.insert()
+
+    async def get_material_by_id(
+        self,
+        graph_id: PydanticObjectId | str,
+        node_id: PydanticObjectId | str,
+        material_id: PydanticObjectId | str,
+        owner_id: PydanticObjectId,
+    ) -> NodeMaterial | None:
+        try:
+            graph_object_id = PydanticObjectId(graph_id)
+            node_object_id = PydanticObjectId(node_id)
+            material_object_id = PydanticObjectId(material_id)
+        except (TypeError, ValueError):
+            return None
+        return await NodeMaterial.find_one(
+            NodeMaterial.id == material_object_id,
+            NodeMaterial.graph_id == graph_object_id,
+            NodeMaterial.node_id == node_object_id,
+            NodeMaterial.owner_id == owner_id,
+        )
+
+    async def delete_material(self, material: NodeMaterial) -> None:
+        await material.delete()

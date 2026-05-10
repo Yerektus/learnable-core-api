@@ -15,6 +15,8 @@ from app.modules.graphs.schemas import (
     GraphNodeUpdate,
     GraphRead,
     GraphUpdate,
+    NodeMaterialCreate,
+    NodeMaterialRead,
 )
 
 from app.modules.graphs.service import GraphService
@@ -244,4 +246,50 @@ async def delete_graph_edge(
     service: GraphService = Depends(get_graph_service),
 ) -> Response:
     await service.delete_edge(user, graph_id, edge_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/{graph_id}/nodes/{node_id}/materials",
+    response_model=list[NodeMaterialRead],
+    summary="List node materials",
+)
+async def list_node_materials(
+    graph_id: str,
+    node_id: str,
+    user: User = Depends(current_active_user),
+    service: GraphService = Depends(get_graph_service),
+) -> list[NodeMaterialRead]:
+    return await service.list_materials(user, graph_id, node_id)
+
+
+@router.post(
+    "/{graph_id}/nodes/{node_id}/materials",
+    response_model=NodeMaterialRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create node material",
+)
+async def create_node_material(
+    graph_id: str,
+    node_id: str,
+    payload: NodeMaterialCreate,
+    user: User = Depends(current_active_user),
+    service: GraphService = Depends(get_graph_service),
+) -> NodeMaterialRead:
+    return await service.create_material(user, graph_id, node_id, payload)
+
+
+@router.delete(
+    "/{graph_id}/nodes/{node_id}/materials/{material_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete node material",
+)
+async def delete_node_material(
+    graph_id: str,
+    node_id: str,
+    material_id: str,
+    user: User = Depends(current_active_user),
+    service: GraphService = Depends(get_graph_service),
+) -> Response:
+    await service.delete_material(user, graph_id, node_id, material_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

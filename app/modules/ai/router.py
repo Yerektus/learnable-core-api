@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import uuid
 from typing import Annotated
@@ -39,7 +40,7 @@ async def _persist_generated_graph(
     user,
 ) -> tuple[int, int]:
     """Insert GeneratedGraph into MongoDB + FalkorDB. Returns (nodes_created, deadlines_created)."""
-    from app.modules.graphs.models import GraphNode
+    from app.modules.graphs.models import GraphEdge, GraphNode
     from beanie import PydanticObjectId
 
     node_ids = []
@@ -168,7 +169,7 @@ async def chat(
     if chat_doc is None or str(chat_doc.node_id) != node_id:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    from app.modules.graphs.models import GraphNode
+    from app.modules.graphs.models import GraphEdge, GraphNode
     try:
         node_oid = PydanticObjectId(node_id)
     except (TypeError, ValueError):
@@ -215,18 +216,50 @@ async def generate_materials_from_file(
     material_type: str = Form(default="both"),
     user: User = Depends(current_active_user),
 ):
+    from beanie import PydanticObjectId
+    from app.modules.graphs.models import GraphEdge, GraphNode, NodeMaterial
+
+    try:
+        node_oid = PydanticObjectId(node_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Invalid node_id")
+
+    node = await GraphNode.find_one(GraphNode.id == node_oid, GraphNode.owner_id == user.id)
+    if node is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if material_type not in {"cards", "notes", "both"}:
+        raise HTTPException(status_code=422, detail="Invalid material_type")
+
     content = await file.read()
     try:
         text = await _run_sync(parse_file, file.filename or "file.txt", content)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
     result = {"node_id": node_id, "cards": [], "notes": ""}
     if material_type in ("cards", "both"):
         result["cards"] = await _run_sync(generate_cards, text)
+        if result["cards"]:
+            await NodeMaterial(
+                owner_id=user.id,
+                graph_id=node.graph_id,
+                node_id=node.id,
+                title=f"Flashcards from {file.filename or 'upload'}",
+                material_type="flashcards",
+                content=json.dumps(result["cards"], ensure_ascii=False),
+            ).insert()
     if material_type in ("notes", "both"):
         result["notes"] = await _run_sync(generate_notes, text)
+        if result["notes"]:
+            await NodeMaterial(
+                owner_id=user.id,
+                graph_id=node.graph_id,
+                node_id=node.id,
+                title=f"Notes from {file.filename or 'upload'}",
+                material_type="note",
+                content=result["notes"],
+            ).insert()
     return result
-
 
 # ── Planning Panel ────────────────────────────────────────────
 @router.post("/graphs/{graph_id}/plan")

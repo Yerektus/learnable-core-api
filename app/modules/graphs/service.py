@@ -11,6 +11,8 @@ from app.modules.graphs.schemas import (
     GraphNodeUpdate,
     GraphRead,
     GraphUpdate,
+    NodeMaterialCreate,
+    NodeMaterialRead,
 )
 from app.modules.users.models import User
 
@@ -268,3 +270,40 @@ class GraphService:
             )
 
         await self.repo.delete_edge(edge)
+
+    async def list_materials(
+        self,
+        user: User,
+        graph_id: str,
+        node_id: str,
+    ) -> list[NodeMaterialRead]:
+        await self.get_node(user, graph_id, node_id)
+        materials = await self.repo.get_materials_by_node(graph_id, node_id, user.id)
+        return [NodeMaterialRead.model_validate(material) for material in materials]
+
+    async def create_material(
+        self,
+        user: User,
+        graph_id: str,
+        node_id: str,
+        data: NodeMaterialCreate,
+    ) -> NodeMaterialRead:
+        await self.get_node(user, graph_id, node_id)
+        material = await self.repo.create_material(graph_id, node_id, user.id, data)
+        return NodeMaterialRead.model_validate(material)
+
+    async def delete_material(
+        self,
+        user: User,
+        graph_id: str,
+        node_id: str,
+        material_id: str,
+    ) -> None:
+        await self.get_node(user, graph_id, node_id)
+        material = await self.repo.get_material_by_id(graph_id, node_id, material_id, user.id)
+        if material is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Material not found",
+            )
+        await self.repo.delete_material(material)

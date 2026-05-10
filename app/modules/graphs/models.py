@@ -148,3 +148,32 @@ class GraphEdge(Document):
                 name="idx_edges_unique",
             ),
         ]
+
+
+class NodeMaterial(Document):
+
+    owner_id: PydanticObjectId
+    graph_id: PydanticObjectId
+    node_id: PydanticObjectId
+    title: str = Field(min_length=1, max_length=120)
+    content: str = Field(min_length=1)
+    material_type: str = Field(default="note", max_length=50)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+    @before_event(Insert)
+    def set_created_timestamps(self) -> None:
+        now = utc_now()
+        self.created_at = now
+        self.updated_at = now
+
+    @before_event(Replace, Save, SaveChanges)
+    def set_updated_timestamp(self) -> None:
+        self.updated_at = utc_now()
+
+    class Settings:
+        name = "node_materials"
+        indexes = [
+            IndexModel([("node_id", ASCENDING), ("created_at", DESCENDING)], name="idx_materials_node_created"),
+            IndexModel([("graph_id", ASCENDING)], name="idx_materials_graph"),
+        ]

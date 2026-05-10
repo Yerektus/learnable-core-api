@@ -184,3 +184,25 @@ class GraphEdgeRead(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class NodeMaterialCreate(BaseModel):
+
+    title: str = Field(min_length=1, max_length=120)
+    content: str = Field(min_length=1)
+    material_type: str = Field(default="note", max_length=50)
+
+
+class NodeMaterialRead(BaseModel):
+
+    id: PydanticObjectId
+    owner_id: PydanticObjectId
+    graph_id: PydanticObjectId
+    node_id: PydanticObjectId
+    title: str
+    content: str
+    material_type: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

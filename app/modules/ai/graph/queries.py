@@ -64,6 +64,13 @@ def create_precedes(from_node_id: str, to_node_id: str):
         {"aid": from_node_id, "bid": to_node_id}
     )
 
+def delete_precedes(from_node_id: str, to_node_id: str):
+    g = get_graph()
+    g.query(
+        "MATCH (a:Node {id: $aid})-[r:PRECEDES]->(b:Node {id: $bid}) DELETE r",
+        {"aid": from_node_id, "bid": to_node_id}
+    )
+
 def create_deadline(deadline_id: str, graph_id: str, title: str, date: str, type: str = "assignment"):
     g = get_graph()
     g.query(
