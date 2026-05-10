@@ -215,16 +215,48 @@ async def generate_materials_from_file(
     material_type: str = Form(default="both"),
     user: User = Depends(current_active_user),
 ):
+    from beanie import PydanticObjectId as OID
+    from app.modules.materials.repository import MaterialRepository
+
     content = await file.read()
+    filename = file.filename or "file.txt"
     try:
-        text = await _run_sync(parse_file, file.filename or "file.txt", content)
+        text = await _run_sync(parse_file, filename, content)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    result = {"node_id": node_id, "cards": [], "notes": ""}
+
+    title = filename.rsplit(".", 1)[0] or filename
+
+    result: dict = {"node_id": node_id, "cards": [], "notes": "", "material_ids": []}
+    repo = MaterialRepository()
+
+    try:
+        node_oid = OID(node_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Invalid node_id")
+
     if material_type in ("cards", "both"):
         result["cards"] = await _run_sync(generate_cards, text)
+        saved = await repo.create(
+            owner_id=user.id,
+            node_id=node_oid,
+            material_type="cards",
+            title=title,
+            cards=result["cards"],
+        )
+        result["material_ids"].append(str(saved.id))
+
     if material_type in ("notes", "both"):
         result["notes"] = await _run_sync(generate_notes, text)
+        saved = await repo.create(
+            owner_id=user.id,
+            node_id=node_oid,
+            material_type="notes",
+            title=title,
+            content=result["notes"],
+        )
+        result["material_ids"].append(str(saved.id))
+
     return result
 
 
