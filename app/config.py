@@ -17,8 +17,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"])
 
     # FalkorDB
-    falkordb_host: str = Field(default="localhost", alias="FALKORDB_HOST")
-    falkordb_port: int = Field(default=6379, alias="FALKORDB_PORT")
+    redis_url: str = Field(default=os.getenv("REDIS_URL", "redis://localhost:6379"), alias="REDIS_URL")
 
     # LLM (OpenAI-compatible, works with Together AI and vLLM)
     llm_base_url: str = Field(default="https://api.together.xyz/v1", alias="LLM_BASE_URL")

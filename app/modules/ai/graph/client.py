@@ -8,7 +8,7 @@ def get_falkor_client() -> FalkorDB:
     global _client
     if _client is None:
         settings = get_settings()
-        _client = FalkorDB(host=settings.falkordb_host, port=settings.falkordb_port)
+        _client = FalkorDB.from_url(settings.redis_url)
     return _client
 
 def get_graph():
