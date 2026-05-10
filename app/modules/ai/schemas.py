@@ -79,6 +79,18 @@ class CanvasError(BaseModel):
     # source="canvas" → same MADE_ERROR pipeline when implemented
 
 
+# ── Manual deadline ───────────────────────────────────────────
+class ManualDeadlineRequest(BaseModel):
+    graph_id: str
+    title: str
+    date: str  # YYYY-MM-DD
+    type: Literal["exam", "quiz", "assignment"] = "quiz"
+    node_ids: list[str] = []
+
+class ManualDeadlineResponse(BaseModel):
+    deadline_id: str
+
+
 # ── Stats ─────────────────────────────────────────────────────
 class AIStats(BaseModel):
     model: str

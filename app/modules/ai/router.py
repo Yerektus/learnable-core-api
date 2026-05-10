@@ -11,7 +11,8 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.modules.ai.schemas import (
     AIStats, ChatRequest, DeadlinePrepRequest, GenerateGraphResponse,
-    GenerateMaterialsRequest, PlanningRequest, CanvasInput,
+    GenerateMaterialsRequest, ManualDeadlineRequest, ManualDeadlineResponse,
+    PlanningRequest, CanvasInput,
 )
 from app.modules.auth.dependencies import current_active_user
 from app.modules.users.models import User
@@ -316,6 +317,22 @@ Be specific and actionable."""
                 yield {"data": chunk.content}
 
     return EventSourceResponse(event_generator())
+
+
+# ── Manual deadline creation ──────────────────────────────────
+@router.post("/deadlines/manual", response_model=ManualDeadlineResponse)
+async def create_manual_deadline(
+    request: ManualDeadlineRequest,
+    user: User = Depends(current_active_user),
+):
+    deadline_id = str(uuid.uuid4())
+    await _run_sync(
+        gq.create_deadline,
+        deadline_id, request.graph_id, request.title, request.date, request.type,
+    )
+    for node_id in request.node_ids:
+        await _run_sync(gq.link_deadline_to_node, deadline_id, node_id)
+    return ManualDeadlineResponse(deadline_id=deadline_id)
 
 
 # ── Canvas stub (v1) ──────────────────────────────────────────
