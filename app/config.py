@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     llm_vision_model: str = Field(default="Qwen/Qwen2.5-VL-72B-Instruct", alias="LLM_VISION_MODEL")
 
     # Embeddings
-    embed_model: str = Field(default="BAAI/bge-m3", alias="EMBED_MODEL")
+    embed_model: str = Field(default=os.getenv("EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2"), alias="EMBED_MODEL")
 
     # Whisper
     whisper_model: str = Field(default="base", alias="WHISPER_MODEL")

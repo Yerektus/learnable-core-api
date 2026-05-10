@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_database(app)
     # Initialize FalkorDB schema
     init_falkordb_schema()
-    # Warmup embedding model (pre-load BGE-M3 to avoid first-request latency)
+    # Warmup embedding model (pre-load to avoid first-request latency)
     import asyncio
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, warmup_embeddings)
