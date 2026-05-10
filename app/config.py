@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from typing import Literal
 
@@ -7,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
 
-    mongodb_url: str = Field(default="mongodb://localhost:27017", alias="MONGODB_URL")
+    mongodb_url: str = Field(default=os.getenv("MONGODB_URL", "mongodb://localhost:27017"), alias="MONGODB_URL")
     database_name: str = Field(default="learnable", alias="DATABASE_NAME")
     secret_key: str = Field(alias="SECRET_KEY")
     access_token_expire_minutes: int = Field(default=30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
