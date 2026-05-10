@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout *)",
+      "Bash(npx *)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(cmd *)",
+      "Bash(C:/Users/duhwk/Documents/Claude/Projects/AMD hack/learnable-client/node_modules/.bin/tsc *)",
+      "Bash(git -C \"C:/Users/duhwk/Documents/Claude/Projects/AMD hack/learnable-core-api\" status)",
+      "Bash(git -C \"C:/Users/duhwk/Documents/Claude/Projects/AMD hack/learnable-client\" status)"
+    ]
+  }
+}

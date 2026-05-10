@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.modules.auth.dependencies import current_active_user
@@ -24,8 +26,9 @@ async def list_tasks(
     service: TaskService = Depends(get_task_service),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
+    graph_id: Optional[str] = Query(default=None),
 ) -> list[TaskRead]:
-    return await service.list_tasks(user, skip=skip, limit=limit)
+    return await service.list_tasks(user, skip=skip, limit=limit, graph_id=graph_id)
 
 
 @router.get("/{task_id}", response_model=TaskRead, summary="Get task")

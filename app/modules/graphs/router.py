@@ -68,6 +68,12 @@ async def delete_graph(
     service: GraphService = Depends(get_graph_service),
 ) -> Response:
     await service.delete_graph(user, graph_id)
+    try:
+        from app.modules.ai.graph import queries as gq
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, gq.delete_graph, graph_id)
+    except Exception:
+        pass
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 #ендпойнты для нод графа
@@ -187,6 +193,12 @@ async def delete_graph_node(
     service: GraphService = Depends(get_graph_service),
 ) -> Response:
     await service.delete_node(user, graph_id, node_id)
+    try:
+        from app.modules.ai.graph import queries as gq
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, gq.delete_node, node_id)
+    except Exception:
+        pass
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

@@ -4,7 +4,7 @@ import uuid
 from typing import AsyncIterator
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.mongodb import MongoDBSaver
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from app.modules.ai.llm import get_llm
 from app.modules.ai.graph import queries as gq
@@ -52,7 +52,7 @@ def make_graph_tools(graph_id: str, user_id: str, loop: asyncio.AbstractEventLoo
     @tool
     def remove_node(node_id: str) -> str:
         """Remove a node from the graph by ID."""
-        from app.modules.graphs.models import GraphNode
+        from app.modules.graphs.models import GraphEdge, GraphNode
         from beanie import PydanticObjectId
 
         g = get_graph()
@@ -60,7 +60,11 @@ def make_graph_tools(graph_id: str, user_id: str, loop: asyncio.AbstractEventLoo
 
         async def _delete() -> None:
             try:
-                await GraphNode.find(GraphNode.id == PydanticObjectId(node_id)).delete()
+                oid = PydanticObjectId(node_id)
+                await GraphNode.find(GraphNode.id == oid).delete()
+                await GraphEdge.find(
+                    (GraphEdge.source_node_id == oid) | (GraphEdge.target_node_id == oid)
+                ).delete()
             except Exception:
                 pass
 
@@ -75,7 +79,26 @@ def make_graph_tools(graph_id: str, user_id: str, loop: asyncio.AbstractEventLoo
     @tool
     def connect_nodes(from_node_id: str, to_node_id: str) -> str:
         """Create a PRECEDES relationship between two nodes."""
+        from app.modules.graphs.models import GraphEdge
+        from beanie import PydanticObjectId
+
         gq.create_precedes(from_node_id, to_node_id)
+
+        async def _insert() -> None:
+            ge = GraphEdge(
+                owner_id=PydanticObjectId(user_id),
+                graph_id=PydanticObjectId(graph_id),
+                source_node_id=PydanticObjectId(from_node_id),
+                target_node_id=PydanticObjectId(to_node_id),
+            )
+            await ge.insert()
+
+        if loop is not None:
+            future = asyncio.run_coroutine_threadsafe(_insert(), loop)
+            future.result(timeout=10)
+        else:
+            asyncio.run(_insert())
+
         return f"Connected {from_node_id} → {to_node_id}"
 
     @tool
@@ -124,6 +147,7 @@ async def stream_planning(
     user_id: str,
     message: str,
     mongodb_client: AsyncIOMotorClient,
+    history: list[dict] | None = None,
 ) -> AsyncIterator[str]:
 
     loop = asyncio.get_running_loop()
@@ -136,10 +160,15 @@ async def stream_planning(
     tools = make_graph_tools(graph_id, user_id, loop=loop)
     llm = get_llm().bind_tools(tools)
 
-    messages = [
-        SystemMessage(content=PLANNING_SYSTEM),
-        HumanMessage(content=message)
-    ]
+    messages = [SystemMessage(content=PLANNING_SYSTEM)]
+    for entry in (history or []):
+        role = entry.get("role", "")
+        content = entry.get("content", "")
+        if role == "user":
+            messages.append(HumanMessage(content=content))
+        elif role == "assistant" and content:
+            messages.append(AIMessage(content=content))
+    messages.append(HumanMessage(content=message))
 
     try:
         async for chunk in llm.astream(messages):
