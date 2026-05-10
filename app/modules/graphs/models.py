@@ -81,6 +81,10 @@ class GraphNode(Document):
 
     updated_at: datetime = Field(default_factory=utc_now)
 
+    summary: Optional[str] = Field(default=None, max_length=1000) #добавил поле для краткого содержания узла, которое может быть сгенерировано ИИ на основе описания и других данных узла, чтобы помочь пользователю быстро понять суть узла без необходимости читать полное описание
+
+    falkordb_deadline_id: Optional[str] = None
+
     @before_event(Insert)
     def set_created_timestamps(self) -> None:
         now = utc_now()
@@ -135,7 +139,12 @@ class GraphEdge(Document):
                 name="idx_edges_graph",
             ),
             IndexModel(
-                [("graph_id", ASCENDING), ("source_node_id", ASCENDING), ("target_node_id", ASCENDING)],
-                name="idx_edges_graph_source_target",
+                [
+                    ("graph_id", ASCENDING),
+                    ("source_node_id", ASCENDING),
+                    ("target_node_id", ASCENDING),   #заметил что не хватает индекса для проверки уникальности рёбер, добавил его, чтобы не допустить создания нескольких рёбер между одними и теми же узлами в одном графе
+                ],
+                unique=True,
+                name="idx_edges_unique",
             ),
         ]

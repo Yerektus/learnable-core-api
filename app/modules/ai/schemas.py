@@ -54,6 +54,7 @@ class GeneratedMaterials(BaseModel):
 # ── Planning Panel ────────────────────────────────────────────
 class PlanningRequest(BaseModel):
     message: str
+    history: list[dict] = []
 
 
 # ── Deadline Prep ─────────────────────────────────────────────

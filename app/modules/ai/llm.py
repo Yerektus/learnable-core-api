@@ -9,7 +9,7 @@ def get_llm(streaming: bool = False) -> ChatOpenAI:
         model=settings.llm_model,
         streaming=streaming,
         temperature=0.7,
-        max_tokens=8192,
+        max_tokens=32000,
     )
 
 def get_vision_llm(streaming: bool = False) -> ChatOpenAI:
@@ -20,4 +20,5 @@ def get_vision_llm(streaming: bool = False) -> ChatOpenAI:
         model=settings.llm_vision_model,
         streaming=streaming,
         temperature=0.7,
+        max_tokens=32000,
     )

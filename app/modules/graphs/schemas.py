@@ -9,6 +9,7 @@ class GraphCreate(BaseModel):
 
     name: str = Field(min_length=1, max_length=80)
     description: Optional[str] = Field(default=None, max_length=500)
+    custom_prompt: Optional[str] = Field(default=None, max_length=2000)
 
     @field_validator("name")
     @classmethod
@@ -31,6 +32,7 @@ class GraphUpdate(BaseModel):
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=80)
     description: Optional[str] = Field(default=None, max_length=500)
+    custom_prompt: Optional[str] = Field(default=None, max_length=2000)
 
     @field_validator("name")
     @classmethod
@@ -57,6 +59,7 @@ class GraphRead(BaseModel):
     owner_id: PydanticObjectId
     name: str
     description: Optional[str] = None
+    custom_prompt: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -86,6 +89,10 @@ class GraphNodeCreate(BaseModel):
 
     node_ids: list[str] = Field(default_factory=list)
 
+    summary: Optional[str] = Field(default=None, max_length=1000) #добавил поле для краткого содержания узла, которое может быть сгенерировано ИИ на основе описания и других данных узла, чтобы помочь пользователю быстро понять суть узла без необходимости читать полное описание
+
+    falkordb_deadline_id: Optional[str] = None
+
 
 class GraphNodeUpdate(BaseModel):
 
@@ -112,6 +119,9 @@ class GraphNodeUpdate(BaseModel):
 
     node_ids: Optional[list[str]] = None
 
+    summary: Optional[str] = Field(default=None, max_length=1000) #добавил поле для краткого содержания узла, которое может быть сгенерировано ИИ на основе описания и других данных узла, чтобы помочь пользователю быстро понять суть узла без необходимости читать полное описание
+
+    falkordb_deadline_id: Optional[str] = None
 
 class GraphNodeRead(BaseModel):
 
@@ -144,6 +154,10 @@ class GraphNodeRead(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    summary: Optional[str] = None #добавил поле для краткого содержания узла, которое может быть сгенерировано ИИ на основе описания и других данных узла, чтобы помочь пользователю быстро понять суть узла без необходимости читать полное описание
+
+    falkordb_deadline_id: Optional[str] = None
 
 
 class GraphEdgeCreate(BaseModel):

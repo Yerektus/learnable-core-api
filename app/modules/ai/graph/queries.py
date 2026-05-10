@@ -47,6 +47,16 @@ def update_node_embedding(node_id: str, title: str, description: str, embedding:
         {"nid": node_id, "title": title, "desc": description, "emb": embedding}
     )
 
+def delete_node(node_id: str):
+    g = get_graph()
+    g.query("MATCH (n:Node {id: $nid}) DETACH DELETE n", {"nid": node_id})
+
+def delete_graph(graph_id: str):
+    g = get_graph()
+    g.query("MATCH (gr:Graph {id: $gid})-[:HAS_NODE]->(n) DETACH DELETE n", {"gid": graph_id})
+    g.query("MATCH (gr:Graph {id: $gid})-[:HAS_DEADLINE]->(d) DETACH DELETE d", {"gid": graph_id})
+    g.query("MATCH (gr:Graph {id: $gid}) DETACH DELETE gr", {"gid": graph_id})
+
 def create_precedes(from_node_id: str, to_node_id: str):
     g = get_graph()
     g.query(

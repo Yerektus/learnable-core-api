@@ -1,3 +1,5 @@
+from typing import Optional
+
 from beanie import PydanticObjectId
 
 from app.modules.kanban.models import Task
@@ -34,10 +36,15 @@ class TaskRepository:
         owner_id: PydanticObjectId,
         skip: int = 0,
         limit: int = 100,
+        graph_id: Optional[str] = None,
     ) -> list[Task]:
 
+        conditions = [Task.owner_id == owner_id]
+        if graph_id is not None:
+            conditions.append(Task.graph_id == graph_id)
+
         return (
-            await Task.find(Task.owner_id == owner_id)
+            await Task.find(*conditions)
             .sort("-created_at")
             .skip(skip)
             .limit(limit)

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import HTTPException, status
 
 from app.modules.kanban.repository import TaskRepository
@@ -25,12 +27,14 @@ class TaskService:
         user: User,
         skip: int = 0,
         limit: int = 100,
+        graph_id: Optional[str] = None,
     ) -> list[TaskRead]:
 
         tasks = await self.repo.get_all_by_owner(
             user.id,
             skip=skip,
             limit=limit,
+            graph_id=graph_id,
         )
 
         return [
