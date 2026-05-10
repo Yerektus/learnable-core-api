@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 
 from beanie import Document, Insert, PydanticObjectId, Replace, Save, SaveChanges, before_event
 from pydantic import Field
@@ -11,9 +11,10 @@ from app.modules.users.models import utc_now
 class Chat(Document):
 
     user_id: PydanticObjectId
-    node_id: PydanticObjectId
+    node_id: Optional[PydanticObjectId] = None
+    graph_id: Optional[PydanticObjectId] = None
     title: str = Field(default="", max_length=200)
-    chat_type: Literal["theory", "task"] = Field(default="theory")
+    chat_type: Literal["theory", "task", "planning"] = Field(default="theory")
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 
@@ -32,6 +33,7 @@ class Chat(Document):
         indexes = [
             IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)], name="idx_chats_user_created"),
             IndexModel([("user_id", ASCENDING), ("node_id", ASCENDING)], name="idx_chats_user_node"),
+            IndexModel([("user_id", ASCENDING), ("graph_id", ASCENDING), ("chat_type", ASCENDING)], name="idx_chats_user_graph_type"),
         ]
 
 

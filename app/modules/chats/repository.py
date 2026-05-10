@@ -31,14 +31,35 @@ class ChatRepository:
             .to_list()
         )
 
+    async def get_planning_chat_by_graph(
+        self,
+        user_id: PydanticObjectId,
+        graph_id: PydanticObjectId,
+    ) -> Chat | None:
+        return await Chat.find_one(
+            Chat.user_id == user_id,
+            Chat.graph_id == graph_id,
+            Chat.chat_type == "planning",
+        )
+
     async def create(
         self,
         user_id: PydanticObjectId,
-        node_id: PydanticObjectId,
+        node_id: PydanticObjectId | None = None,
         chat_type: str = "theory",
+        graph_id: PydanticObjectId | None = None,
     ) -> Chat:
-        chat = Chat(user_id=user_id, node_id=node_id, chat_type=chat_type)
+        chat = Chat(user_id=user_id, node_id=node_id, graph_id=graph_id, chat_type=chat_type)
         return await chat.insert()
+
+    async def create_message(
+        self,
+        chat_id: PydanticObjectId,
+        role: str,
+        content: str,
+    ) -> ChatMessage:
+        msg = ChatMessage(chat_id=chat_id, role=role, content=content)
+        return await msg.insert()
 
     async def delete(self, chat: Chat) -> None:
         await ChatMessage.find(ChatMessage.chat_id == chat.id).delete()

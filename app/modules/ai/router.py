@@ -5,7 +5,7 @@ from typing import Annotated
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, WebSocket
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, WebSocket
 from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
@@ -60,6 +60,8 @@ async def _persist_generated_graph(
 
     order_to_id = {node_data.order: node_id for node_data, node_id in zip(generated.nodes, node_ids)}
     index_to_id = {i: node_id for i, node_id in enumerate(node_ids)}
+    order_to_title = {node_data.order: node_data.title for node_data in generated.nodes}
+    index_to_title = {i: node_data.title for i, node_data in enumerate(generated.nodes)}
 
     for from_order, to_order in generated.edges:
         if from_order in order_to_id and to_order in order_to_id:
@@ -68,16 +70,21 @@ async def _persist_generated_graph(
     for i_dl, dl in enumerate(generated.deadlines):
         dl_id = str(uuid.uuid4())
         await _run_sync(gq.create_deadline, dl_id, graph_id, dl.title, dl.date.isoformat(), dl.type)
+        covered_titles = []
         for ni in dl.node_indices:
             node_id_for_dl = order_to_id.get(ni) or index_to_id.get(ni)
             if node_id_for_dl:
                 await _run_sync(gq.link_deadline_to_node, dl_id, node_id_for_dl)
+            title = order_to_title.get(ni) or index_to_title.get(ni)
+            if title:
+                covered_titles.append(title)
         if dl.type in ("quiz", "exam"):
             dl_node = GraphNode(
                 owner_id=user.id,
                 graph_id=PydanticObjectId(graph_id),
                 title=dl.title,
                 node_type="quiz",
+                description=", ".join(covered_titles) if covered_titles else None,
                 position_x=float(i_dl * 300),
                 position_y=350.0,
                 falkordb_deadline_id=dl_id,
@@ -187,6 +194,7 @@ async def chat(
 @router.post("/nodes/{node_id}/errors")
 async def record_error_endpoint(
     node_id: str,
+    background_tasks: BackgroundTasks,
     description: str = Form(...),
     source: str = Form(default="chat"),
     user: User = Depends(current_active_user),
@@ -195,17 +203,8 @@ async def record_error_endpoint(
     await _run_sync(gq.ensure_user_node, str(user.id))
     emb = await _run_sync(embed, description)
     await _run_sync(gq.record_error, error_id, str(user.id), node_id, description, emb, source)
-    task = asyncio.create_task(_async_link_similar(error_id))
-    task.add_done_callback(_log_task_exception)
+    background_tasks.add_task(gq.find_and_link_similar_errors, error_id)
     return {"error_id": error_id}
-
-async def _async_link_similar(error_id: str):
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, gq.find_and_link_similar_errors, error_id)
-
-def _log_task_exception(task: asyncio.Task) -> None:
-    if not task.cancelled() and task.exception() is not None:
-        logger.error("Background task %s failed", task.get_name(), exc_info=task.exception())
 
 
 # ── Materials ─────────────────────────────────────────────────

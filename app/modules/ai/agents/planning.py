@@ -4,7 +4,7 @@ import uuid
 from typing import AsyncIterator
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.mongodb import MongoDBSaver
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from app.modules.ai.llm import get_llm
 from app.modules.ai.graph import queries as gq
@@ -171,22 +171,30 @@ async def stream_planning(
     messages.append(HumanMessage(content=message))
 
     try:
-        async for chunk in llm.astream(messages):
-            if chunk.content:
-                yield chunk.content
-            # Handle tool calls
-            if chunk.tool_calls:
-                for tc in chunk.tool_calls:
-                    tool_name = tc["name"]
-                    tool_args = tc["args"]
-                    yield f"\n[Running: {tool_name}...]\n"
-                    # Find and execute tool (run_in_executor — tools call sync FalkorDB ops)
-                    for t in tools:
-                        if t.name == tool_name:
-                            result = await loop.run_in_executor(None, lambda: t.invoke(tool_args))
-                            yield f"[Done: {result}]\n"
-                            break
+        MAX_ITERATIONS = 10
+        for _ in range(MAX_ITERATIONS):
+            response = await loop.run_in_executor(None, llm.invoke, messages)
+            messages.append(response)
+
+            if not response.tool_calls:
+                break
+
+            for tc in response.tool_calls:
+                tool_name = tc["name"]
+                tool_args = tc["args"]
+                matched = next((t for t in tools if t.name == tool_name), None)
+                if matched is None:
+                    result = f"Unknown tool: {tool_name}"
+                else:
+                    result = await loop.run_in_executor(None, matched.invoke, tool_args)
+                messages.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+                yield f"[{tool_name}: {result}]\n"
+
+        # Yield final LLM response (last AIMessage with content)
+        for msg in reversed(messages):
+            if isinstance(msg, AIMessage) and msg.content:
+                yield msg.content
+                break
     except Exception as e:
-        # Restore snapshot on failure
-        gq.restore_graph_state(graph_id, snapshot)
+        await loop.run_in_executor(None, gq.restore_graph_state, graph_id, snapshot)
         yield f"\n[Error occurred, changes reverted: {str(e)}]\n"
