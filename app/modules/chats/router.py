@@ -4,7 +4,13 @@ from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.modules.auth.dependencies import current_active_user
 from app.modules.chats.dependencies import get_chat_service
-from app.modules.chats.schemas import ChatCreate, ChatMessageRead, ChatRead
+from app.modules.chats.schemas import (
+    ChatCreate,
+    ChatMessageCreate,
+    ChatMessageRead,
+    ChatRead,
+    PlanningChatRead,
+)
 from app.modules.chats.service import ChatService
 from app.modules.users.models import User
 
@@ -49,3 +55,31 @@ async def delete_chat(
 ) -> Response:
     await service.delete_chat(user, chat_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/graphs/{graph_id}/planning-chat",
+    response_model=PlanningChatRead,
+    summary="Get or create planning chat for a graph",
+)
+async def get_planning_chat(
+    graph_id: str,
+    user: User = Depends(current_active_user),
+    service: ChatService = Depends(get_chat_service),
+) -> PlanningChatRead:
+    return await service.get_or_create_planning_chat(user, graph_id)
+
+
+@router.post(
+    "/graphs/{graph_id}/planning-chat/messages",
+    response_model=ChatMessageRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Save a message to the planning chat",
+)
+async def save_planning_message(
+    graph_id: str,
+    data: ChatMessageCreate,
+    user: User = Depends(current_active_user),
+    service: ChatService = Depends(get_chat_service),
+) -> ChatMessageRead:
+    return await service.save_planning_message(user, graph_id, data)
