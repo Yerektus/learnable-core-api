@@ -16,8 +16,6 @@ from app.modules.ai.router import router as ai_router
 from app.modules.chats.router import router as chats_router
 from app.modules.materials.router import router as materials_router
 from app.modules.ai.graph.schema import init_falkordb_schema
-from app.modules.ai.graph.embeddings import warmup as warmup_embeddings
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -29,11 +27,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_database(app)
     # Initialize FalkorDB schema
     init_falkordb_schema()
-    # Warmup embedding model (pre-load to avoid first-request latency)
-    import asyncio
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, warmup_embeddings)
-    logger.info("FalkorDB schema initialized, embeddings warmed up")
+    logger.info("FalkorDB schema initialized")
     try:
         yield
     finally:
