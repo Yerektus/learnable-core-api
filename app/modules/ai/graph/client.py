@@ -16,3 +16,4 @@ def get_graph():
     if _graph is None:
         _graph = get_falkor_client().select_graph("learnable")
     return _graph
+# force rebuild
