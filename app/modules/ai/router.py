@@ -29,6 +29,8 @@ from app.config import get_settings
 
 router = APIRouter()
 
+_MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+
 
 async def _run_sync(func, *args):
     return await asyncio.get_running_loop().run_in_executor(None, func, *args)
@@ -103,6 +105,8 @@ async def generate_graph(
     user: User = Depends(current_active_user),
 ):
     content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large. Maximum allowed size is 50 MB.")
     try:
         text = await _run_sync(parse_file, file.filename or "file.txt", content)
     except ValueError as e:
@@ -132,6 +136,8 @@ async def generate_graph_from_audio(
     user: User = Depends(current_active_user),
 ):
     content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large. Maximum allowed size is 50 MB.")
     text = await _run_sync(transcribe_audio, content, file.filename or "audio.mp3")
 
     from app.modules.graphs.models import Graph
@@ -200,6 +206,15 @@ async def record_error_endpoint(
     source: str = Form(default="chat"),
     user: User = Depends(current_active_user),
 ):
+    from app.modules.graphs.models import GraphNode
+    from beanie import PydanticObjectId as _OID
+    try:
+        node_oid = _OID(node_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Invalid node_id")
+    if not await GraphNode.find_one(GraphNode.id == node_oid, GraphNode.owner_id == user.id):
+        raise HTTPException(status_code=404, detail="Node not found")
+
     error_id = str(uuid.uuid4())
     await _run_sync(gq.ensure_user_node, str(user.id))
     emb = await _run_sync(embed, description)
@@ -218,8 +233,11 @@ async def generate_materials_from_file(
 ):
     from beanie import PydanticObjectId as OID
     from app.modules.materials.repository import MaterialRepository
+    from app.modules.graphs.models import GraphNode
 
     content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large. Maximum allowed size is 50 MB.")
     filename = file.filename or "file.txt"
     try:
         text = await _run_sync(parse_file, filename, content)
@@ -235,6 +253,9 @@ async def generate_materials_from_file(
         node_oid = OID(node_id)
     except (TypeError, ValueError):
         raise HTTPException(status_code=422, detail="Invalid node_id")
+
+    if not await GraphNode.find_one(GraphNode.id == node_oid, GraphNode.owner_id == user.id):
+        raise HTTPException(status_code=404, detail="Node not found")
 
     if material_type in ("cards", "both"):
         result["cards"] = await _run_sync(generate_cards, text)
@@ -268,6 +289,11 @@ async def planning_panel(
     request: PlanningRequest,
     user: User = Depends(current_active_user),
 ):
+    from app.modules.graphs.models import Graph
+    graph = await Graph.get(graph_id)
+    if not graph or str(graph.owner_id) != str(user.id):
+        raise HTTPException(status_code=404, detail="Graph not found")
+
     async def event_generator():
         async for chunk in stream_planning(
             graph_id=graph_id,
@@ -287,6 +313,10 @@ async def deadline_prep(
     deadline_id: str,
     user: User = Depends(current_active_user),
 ):
+    is_owner = await _run_sync(gq.check_deadline_owner, deadline_id, str(user.id))
+    if not is_owner:
+        raise HTTPException(status_code=404, detail="Deadline not found")
+
     ctx = await _run_sync(gq.get_deadline_prep_context, str(user.id), deadline_id)
 
     async def event_generator():
@@ -325,6 +355,11 @@ async def create_manual_deadline(
     request: ManualDeadlineRequest,
     user: User = Depends(current_active_user),
 ):
+    from app.modules.graphs.models import Graph
+    graph = await Graph.get(request.graph_id)
+    if not graph or str(graph.owner_id) != str(user.id):
+        raise HTTPException(status_code=404, detail="Graph not found")
+
     deadline_id = str(uuid.uuid4())
     await _run_sync(
         gq.create_deadline,

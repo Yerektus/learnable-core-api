@@ -258,3 +258,13 @@ def restore_graph_state(graph_id: str, snapshot: dict):
     for c in snapshot["covers"]:
         g.query("MATCH (d:Deadline {id: $did}), (n:Node {id: $nid}) CREATE (d)-[:COVERS]->(n)",
                 {"did": c["deadline_id"], "nid": c["node_id"]})
+
+def check_deadline_owner(deadline_id: str, user_id: str) -> bool:
+    """Return True if the deadline belongs to a graph owned by user_id."""
+    g = get_graph()
+    result = g.query(
+        "MATCH (u:User {id: $uid})-[:OWNS]->(gr:Graph)-[:HAS_DEADLINE]->(d:Deadline {id: $did}) "
+        "RETURN d",
+        {"uid": user_id, "did": deadline_id},
+    )
+    return bool(result.result_set)

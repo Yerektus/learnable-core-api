@@ -56,6 +56,12 @@ def make_graph_tools(graph_id: str, user_id: str, loop: asyncio.AbstractEventLoo
         from beanie import PydanticObjectId
 
         g = get_graph()
+        ownership = g.query(
+            "MATCH (gr:Graph {id: $gid})-[:HAS_NODE]->(n:Node {id: $nid}) RETURN n",
+            {"gid": graph_id, "nid": node_id},
+        )
+        if not ownership.result_set:
+            return f"Error: node {node_id} does not belong to graph {graph_id}"
         g.query("MATCH (n:Node {id: $id}) DETACH DELETE n", {"id": node_id})
 
         async def _delete() -> None:
@@ -82,6 +88,14 @@ def make_graph_tools(graph_id: str, user_id: str, loop: asyncio.AbstractEventLoo
         from app.modules.graphs.models import GraphEdge
         from beanie import PydanticObjectId
 
+        g = get_graph()
+        ownership = g.query(
+            "MATCH (gr:Graph {id: $gid})-[:HAS_NODE]->(a:Node {id: $aid}), "
+            "(gr)-[:HAS_NODE]->(b:Node {id: $bid}) RETURN a",
+            {"gid": graph_id, "aid": from_node_id, "bid": to_node_id},
+        )
+        if not ownership.result_set:
+            return f"Error: one or both nodes do not belong to graph {graph_id}"
         gq.create_precedes(from_node_id, to_node_id)
 
         async def _insert() -> None:

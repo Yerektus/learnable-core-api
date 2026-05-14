@@ -55,7 +55,7 @@ class UserManager(ObjectIDIDMixin, BaseUserManager[User, PydanticObjectId]):
         logger.info("User registered", extra={"user_id": str(user.id), "email": user.email})
 
     async def on_after_forgot_password(self, user: User, token: str, request: Request | None = None) -> None:
-        logger.info("Password reset requested", extra={"user_id": str(user.id), "reset_token": token})
+        logger.info("Password reset requested", extra={"user_id": str(user.id)})
 
     async def on_after_request_verify(self, user: User, token: str, request: Request | None = None) -> None:
-        logger.info("Email verification requested", extra={"user_id": str(user.id), "verification_token": token})
+        logger.info("Email verification requested", extra={"user_id": str(user.id)})
