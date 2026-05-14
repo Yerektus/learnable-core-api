@@ -24,6 +24,18 @@ class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PublicUserRead(BaseModel):
+    """Public profile — no email or account status exposed."""
+
+    id: PydanticObjectId
+    username: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserCreate(schemas.CreateUpdateDictModel):
 
     email: EmailStr

@@ -21,7 +21,10 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
     algorithm: Literal["HS256"] = Field(default="HS256", alias="ALGORITHM")
-    cors_origins: list[str] = Field(default=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"])
+    cors_origins: list[str] = Field(
+        default=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"],
+        alias="CORS_ORIGINS",
+    )
     cookie_secure: bool = Field(default=False, alias="COOKIE_SECURE")
     cookie_same_site: str = Field(default="lax", alias="COOKIE_SAME_SITE")
 

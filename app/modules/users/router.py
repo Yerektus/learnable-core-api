@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.modules.auth.dependencies import current_active_user, current_admin_user
 from app.modules.users.dependencies import get_user_service
-from app.modules.users.schemas import UserRead, UserUpdate
+from app.modules.users.schemas import PublicUserRead, UserRead, UserUpdate
 from app.modules.users.service import UserService
 
 router = APIRouter(tags=["users"])
@@ -28,11 +28,11 @@ async def update_me(
     return await service.update_profile(user, payload)
 
 
-@router.get("/{username}", response_model=UserRead, summary="Get public user profile")
+@router.get("/{username}", response_model=PublicUserRead, summary="Get public user profile")
 async def get_public_profile(
     username: str,
     service: UserService = Depends(get_user_service),
-) -> UserRead:
+) -> PublicUserRead:
     return await service.get_profile(username)
 
 

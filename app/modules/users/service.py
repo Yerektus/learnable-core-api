@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from pymongo.errors import DuplicateKeyError
 
 from app.modules.users.repository import UserRepository
-from app.modules.users.schemas import UserRead, UserUpdate
+from app.modules.users.schemas import PublicUserRead, UserRead, UserUpdate
 
 
 class UserService:
@@ -15,11 +15,11 @@ class UserService:
     async def get_current_profile(self, user: Any) -> UserRead:
         return UserRead.model_validate(user)
 
-    async def get_profile(self, username: str) -> UserRead:
+    async def get_profile(self, username: str) -> PublicUserRead:
         user = await self.repo.get_by_username(username.lower())
         if user is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        return UserRead.model_validate(user)
+        return PublicUserRead.model_validate(user)
 
     async def update_profile(self, user: Any, data: UserUpdate) -> UserRead:
         update_data = data.model_dump(exclude_unset=True)
