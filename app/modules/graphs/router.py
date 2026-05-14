@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
@@ -158,7 +159,7 @@ async def list_graph_deadlines(
     graph_id: str,
     user: User = Depends(current_active_user),
     service: GraphService = Depends(get_graph_service),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     await service.get_graph(user, graph_id)  # ownership check
     from app.modules.ai.graph import queries as gq
     loop = asyncio.get_running_loop()
@@ -174,7 +175,7 @@ async def list_node_deadlines(
     node_id: str,
     user: User = Depends(current_active_user),
     service: GraphService = Depends(get_graph_service),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     await service.get_node(user, graph_id, node_id)  # ownership check
     from app.modules.ai.graph import queries as gq
     loop = asyncio.get_running_loop()

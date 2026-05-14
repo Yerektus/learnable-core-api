@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -25,9 +26,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Initialize MongoDB/Beanie on startup and close Motor on shutdown."""
     logger.info("Starting Learnable Core API")
     await init_database(app)
-    # Initialize FalkorDB schema
-    init_falkordb_schema()
-    logger.info("FalkorDB schema initialized")
+
+    # Run FalkorDB init in a thread — it uses synchronous Redis I/O that would
+    # block the event loop and cause Railway health-check timeouts if run inline.
+    loop = asyncio.get_running_loop()
+    try:
+        await loop.run_in_executor(None, init_falkordb_schema)
+        logger.info("FalkorDB schema initialized")
+    except Exception:
+        logger.exception("FalkorDB schema init failed — continuing without graph indexes")
+
+    # Pre-generate and cache the OpenAPI schema so the first /docs request is
+    # instant and any schema errors surface in startup logs (visible in Railway).
+    try:
+        schema = app.openapi()
+        logger.info("OpenAPI schema pre-generated OK (%d paths)", len(schema.get("paths", {})))
+    except Exception:
+        logger.exception("OpenAPI schema generation FAILED — /docs will be unavailable")
+
     try:
         yield
     finally:

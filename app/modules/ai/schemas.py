@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from pydantic import BaseModel
 
 
@@ -54,7 +54,7 @@ class GeneratedMaterials(BaseModel):
 # ── Planning Panel ────────────────────────────────────────────
 class PlanningRequest(BaseModel):
     message: str
-    history: list[dict] = []
+    history: list[dict[str, Any]] = []
 
 
 # ── Deadline Prep ─────────────────────────────────────────────
