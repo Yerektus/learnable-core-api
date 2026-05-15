@@ -1,19 +1,22 @@
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 from app.config import get_settings
 
-_model: SentenceTransformer | None = None
+_client: OpenAI | None = None
 
-def get_embedding_model() -> SentenceTransformer:
-    global _model
-    if _model is None:
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
         settings = get_settings()
-        _model = SentenceTransformer(settings.embed_model)
-    return _model
+        _client = OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url)
+    return _client
 
 def embed(text: str) -> list[float]:
-    model = get_embedding_model()
-    return model.encode(text, normalize_embeddings=True).tolist()
+    settings = get_settings()
+    response = _get_client().embeddings.create(
+        model=settings.embed_model,
+        input=text,
+    )
+    return response.data[0].embedding
 
 def warmup():
-    """Call at startup to pre-load model."""
-    embed("warmup")
+    pass  # no warmup needed for API-based embeddings
